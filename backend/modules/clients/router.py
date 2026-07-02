@@ -1,3 +1,4 @@
+from database import get_pool
 from fastapi import APIRouter
 
 router = APIRouter()
@@ -5,4 +6,14 @@ router = APIRouter()
 
 @router.get("/")
 async def list_clients():
-    return {"message": "clients — coming in M1"}
+    pool = await get_pool()
+    async with pool.acquire() as connection:
+        rows = await connection.fetch(
+            """
+            SELECT *
+            FROM clients
+            WHERE is_active = TRUE
+            ORDER BY name ASC
+            """
+        )
+        return [dict(row) for row in rows]
