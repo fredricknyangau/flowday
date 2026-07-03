@@ -89,4 +89,5 @@ async def health():
         "service": "flowday-api",
         "database": db_status,
         "environment": settings.environment,
+        "allowed_origins": settings.allowed_origins,
     }
