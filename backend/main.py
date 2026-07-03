@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+import asyncpg
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from config import settings
 from database import get_pool, close_pool
@@ -39,6 +41,52 @@ app.include_router(assignments_router, prefix="/api/v1/assignments", tags=["assi
 app.include_router(schedule_router,    prefix="/api/v1/schedule",    tags=["schedule"])
 
 
-@app.get("/health")
+# ── Global exception handlers ──────────────────────────────────────────────────
+
+def _error_response(status_code: int, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": True, "message": message, "detail": None},
+    )
+
+
+@app.exception_handler(asyncpg.ForeignKeyViolationError)
+async def foreign_key_handler(request: Request, exc: asyncpg.ForeignKeyViolationError):
+    return _error_response(400, "Invalid reference — the related record does not exist")
+
+
+@app.exception_handler(asyncpg.UniqueViolationError)
+async def unique_violation_handler(request: Request, exc: asyncpg.UniqueViolationError):
+    return _error_response(409, "A record with this value already exists")
+
+
+@app.exception_handler(asyncpg.CheckViolationError)
+async def check_violation_handler(request: Request, exc: asyncpg.CheckViolationError):
+    return _error_response(400, "Value is not allowed for this field")
+
+
+@app.exception_handler(Exception)
+async def generic_handler(request: Request, exc: Exception):
+    return _error_response(500, "An unexpected error occurred")
+
+
+# ── Health check ───────────────────────────────────────────────────────────────
+
+@app.get("/health", tags=["system"])
 async def health():
-    return {"status": "ok", "service": "flowday-api"}
+    db_status = "connected"
+    overall = "ok"
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+    except Exception:
+        db_status = "unreachable"
+        overall = "degraded"
+
+    return {
+        "status": overall,
+        "service": "flowday-api",
+        "database": db_status,
+        "environment": settings.environment,
+    }

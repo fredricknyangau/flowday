@@ -1,10 +1,33 @@
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 import { API_BASE_URL } from '@/lib/constants'
-import type { Client } from '@/types'
+import type { Client, CreateClientPayload } from '@/types'
 
 const base = `${API_BASE_URL}/clients`
 
+function extractMessage(err: unknown): string {
+  if (err instanceof AxiosError) {
+    const data = err.response?.data
+    if (data?.message) return data.message
+    if (data?.detail)  return typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
+    return err.message
+  }
+  return 'An unexpected error occurred'
+}
+
 export async function fetchClients(): Promise<Client[]> {
-  const { data } = await axios.get(base)
-  return data
+  try {
+    const { data } = await axios.get<Client[]>(base)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+export async function createClient(payload: CreateClientPayload): Promise<Client> {
+  try {
+    const { data } = await axios.post<Client>(base, payload)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
 }

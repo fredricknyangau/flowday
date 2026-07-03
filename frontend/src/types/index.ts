@@ -43,13 +43,17 @@ export interface Assignment {
   assignment_type: AssignmentType
   course: string | null
   word_count: number | null
-  estimated_hours: number | null
+  // Backend serialises NUMERIC columns as strings (e.g. "5.0")
+  estimated_hours: string | null
   deadline: string
   status: AssignmentStatus
-  payment_kes: number | null
+  payment_kes: string | null
   notes: string | null
+  is_active: boolean
   received_at: string
   submitted_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface ScheduleBlock {
@@ -74,6 +78,13 @@ export interface CreateAssignmentPayload {
 
 export interface UpdateAssignmentStatusPayload {
   status: AssignmentStatus
+}
+
+export interface CreateClientPayload {
+  name: string
+  platform?: string
+  priority?: Priority
+  notes?: string
 }
 
 export interface WeekDay {

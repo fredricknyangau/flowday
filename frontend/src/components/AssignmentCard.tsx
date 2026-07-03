@@ -50,7 +50,7 @@ export function AssignmentCard({ assignment }: Props) {
             )}
             {assignment.estimated_hours && (
               <span className="text-xs text-gray-500">
-                · {assignment.estimated_hours} hrs est
+                · {parseFloat(assignment.estimated_hours)} hrs est
               </span>
             )}
           </div>
