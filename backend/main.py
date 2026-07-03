@@ -81,7 +81,10 @@ async def health():
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            await conn.fetchval("SELECT 1")
+            await conn.fetchval("SELECT count(*) FROM schedule_blocks")
+    except asyncpg.exceptions.UndefinedTableError:
+        db_status = "missing_tables"
+        overall = "degraded"
     except Exception:
         db_status = "unreachable"
         overall = "degraded"
