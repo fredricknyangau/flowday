@@ -8,7 +8,7 @@ from modules.schedule.schemas import ScheduleBlockResponse
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ScheduleBlockResponse])
+@router.get("", response_model=list[ScheduleBlockResponse])
 async def list_schedule_blocks(conn: asyncpg.Connection = Depends(get_connection)):
     rows = await get_all_schedule_blocks(conn)
     return [ScheduleBlockResponse(**dict(row)) for row in rows]

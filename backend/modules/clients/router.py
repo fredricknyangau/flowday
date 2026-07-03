@@ -19,13 +19,13 @@ from modules.clients.schemas import (
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ClientResponse])
+@router.get("", response_model=list[ClientResponse])
 async def list_clients(conn: asyncpg.Connection = Depends(get_connection)):
     rows = await get_all_clients(conn)
     return [ClientResponse(**dict(row)) for row in rows]
 
 
-@router.post("/", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
 async def create_new_client(
     body: CreateClientRequest,
     conn: asyncpg.Connection = Depends(get_connection),

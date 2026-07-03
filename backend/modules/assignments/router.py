@@ -64,7 +64,7 @@ def _today_utc_window() -> tuple[datetime, datetime]:
     )
 
 
-@router.get("/", response_model=list[AssignmentResponse])
+@router.get("", response_model=list[AssignmentResponse])
 async def list_assignments(conn: asyncpg.Connection = Depends(get_connection)):
     rows = await get_all_assignments(conn)
     return [AssignmentResponse(**dict(row)) for row in rows]
@@ -77,7 +77,7 @@ async def today_assignments(conn: asyncpg.Connection = Depends(get_connection)):
     return [AssignmentResponse(**dict(row)) for row in rows]
 
 
-@router.post("/", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_new_assignment(
     body: CreateAssignmentRequest,
     conn: asyncpg.Connection = Depends(get_connection),
