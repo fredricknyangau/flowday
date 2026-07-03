@@ -67,7 +67,9 @@ async def check_violation_handler(request: Request, exc: asyncpg.CheckViolationE
 
 @app.exception_handler(Exception)
 async def generic_handler(request: Request, exc: Exception):
-    return _error_response(500, "An unexpected error occurred")
+    import traceback
+    traceback.print_exc()
+    return _error_response(500, f"An unexpected error occurred: {str(exc)}")
 
 
 # ── Health check ───────────────────────────────────────────────────────────────
