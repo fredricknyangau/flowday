@@ -51,6 +51,7 @@ export function AddAssignment() {
     if (!clientId)       e.clientId       = 'Select a client'
     if (!assignmentType) e.assignmentType = 'Select an assignment type'
     if (!deadlineDate)   e.deadlineDate   = 'Enter a deadline date'
+    if (!deadlineTime)   e.deadlineTime   = 'Enter a deadline time'
     setFieldErrors(e)
     return Object.keys(e).length === 0
   }
@@ -58,12 +59,14 @@ export function AddAssignment() {
   function handleSubmit() {
     setSubmitError(null)
     if (!validate()) return
+
+    const localDeadline = new Date(`${deadlineDate}T${deadlineTime}:00`)
     mutate({
       client_id:       clientId,
       assignment_type: assignmentType as any,
       course:          course || undefined,
       word_count:      wordCount ?? undefined,
-      deadline:        `${deadlineDate}T${deadlineTime}:00`,
+      deadline:        localDeadline.toISOString(),
       payment_kes:     paymentKes ?? undefined,
       notes:           notes || undefined,
     })

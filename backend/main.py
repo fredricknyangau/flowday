@@ -1,19 +1,18 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 import asyncpg
+from config import settings
+from database import close_pool, get_pool
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-from config import settings
-from database import get_pool, close_pool
-from modules.clients.router import router as clients_router
 from modules.assignments.router import router as assignments_router
-from modules.schedule.router import router as schedule_router
-from modules.push.router import router as push_router
 from modules.burnout.router import router as burnout_router
+from modules.clients.router import router as clients_router
+from modules.push.router import router as push_router
 from modules.push.tasks import run_push_notification_worker
-import asyncio
+from modules.schedule.router import router as schedule_router
 
 _push_task = None
 

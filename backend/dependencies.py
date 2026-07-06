@@ -1,6 +1,6 @@
 import asyncpg
-from fastapi import Depends
 from database import get_pool
+from fastapi import Depends
 
 
 async def get_connection(
