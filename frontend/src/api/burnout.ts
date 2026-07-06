@@ -1,6 +1,10 @@
 import axios, { AxiosError } from 'axios'
 import { API_BASE_URL } from '@/lib/constants'
-import type { ScheduleBlock } from '@/types'
+
+export interface BurnoutStatus {
+  is_at_risk: boolean
+  trigger_signal: string | null
+}
 
 function extractMessage(err: unknown): string {
   if (err instanceof AxiosError) {
@@ -12,17 +16,10 @@ function extractMessage(err: unknown): string {
   return 'An unexpected error occurred'
 }
 
-export async function fetchSchedule(): Promise<ScheduleBlock[]> {
+export async function fetchBurnoutStatus(): Promise<BurnoutStatus> {
   try {
-    const { data } = await axios.get<ScheduleBlock[]>(`${API_BASE_URL}/schedule`)
+    const { data } = await axios.get<BurnoutStatus>(`${API_BASE_URL}/burnout/status`)
     return data
-  } catch (err) {
-    throw new Error(extractMessage(err))
-  }
-}
-export async function skipScheduleBlock({ id, date, skipped }: { id: string, date: string, skipped: boolean }): Promise<void> {
-  try {
-    await axios.post(`${API_BASE_URL}/schedule/${id}/skip`, { date, skipped })
   } catch (err) {
     throw new Error(extractMessage(err))
   }

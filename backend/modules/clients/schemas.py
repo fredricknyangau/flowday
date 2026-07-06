@@ -17,6 +17,12 @@ class ClientResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    
+    # Aggregate stats for UI
+    active_assignments_count: int = 0
+    submitted_this_week_count: int = 0
+    overdue_assignments_count: int = 0
+    total_earnings: float = 0.0
 
     model_config = {"from_attributes": True}
 

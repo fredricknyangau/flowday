@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, PlusCircle, LayoutGrid } from 'lucide-react'
+import { CalendarDays, PlusCircle, LayoutGrid, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const tabs = [
-  { to: '/',       label: 'Today',  Icon: CalendarDays },
-  { to: '/add',    label: 'Add',    Icon: PlusCircle   },
-  { to: '/weekly', label: 'Week',   Icon: LayoutGrid   },
+  { to: '/',        label: 'Today',   Icon: CalendarDays },
+  { to: '/add',     label: 'Add',     Icon: PlusCircle   },
+  { to: '/weekly',  label: 'Week',    Icon: LayoutGrid   },
+  { to: '/clients', label: 'Clients', Icon: Users        },
 ]
 
 export function BottomNav() {

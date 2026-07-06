@@ -10,14 +10,24 @@ from database import get_pool, close_pool
 from modules.clients.router import router as clients_router
 from modules.assignments.router import router as assignments_router
 from modules.schedule.router import router as schedule_router
+from modules.push.router import router as push_router
+from modules.burnout.router import router as burnout_router
+from modules.push.tasks import run_push_notification_worker
+import asyncio
+
+_push_task = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # startup
+    # Startup
     await get_pool()
+    global _push_task
+    _push_task = asyncio.create_task(run_push_notification_worker())
     yield
-    # shutdown
+    # Shutdown
+    if _push_task:
+        _push_task.cancel()
     await close_pool()
 
 
@@ -39,6 +49,8 @@ app.add_middleware(
 app.include_router(clients_router,     prefix="/api/v1/clients",     tags=["clients"])
 app.include_router(assignments_router, prefix="/api/v1/assignments", tags=["assignments"])
 app.include_router(schedule_router,    prefix="/api/v1/schedule",    tags=["schedule"])
+app.include_router(push_router,        prefix="/api/v1/push",        tags=["push"])
+app.include_router(burnout_router,     prefix="/api/v1/burnout",     tags=["burnout"])
 
 
 # ── Global exception handlers ──────────────────────────────────────────────────

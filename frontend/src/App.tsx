@@ -4,6 +4,7 @@ import { BottomNav } from '@/components/BottomNav'
 import { Today } from '@/pages/Today'
 import { AddAssignment } from '@/pages/AddAssignment'
 import { Weekly } from '@/pages/Weekly'
+import { Clients } from '@/pages/Clients'
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/"       element={<Today />} />
           <Route path="/add"    element={<AddAssignment />} />
           <Route path="/weekly" element={<Weekly />} />
+          <Route path="/clients" element={<Clients />} />
         </Routes>
       </main>
       <BottomNav />

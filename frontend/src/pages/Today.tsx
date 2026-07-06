@@ -3,6 +3,8 @@ import { AssignmentCard } from '@/components/AssignmentCard'
 import { SchedulePanel } from '@/components/SchedulePanel'
 import { sortAssignmentsByUrgency } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
+import { NotificationBanner } from '@/components/NotificationBanner'
+import { BurnoutWarning } from '@/components/BurnoutWarning'
 
 export function Today() {
   const {
@@ -34,6 +36,9 @@ export function Today() {
             : `${pending.length} assignment${pending.length !== 1 ? 's' : ''} pending today`}
         </p>
       </div>
+      
+      <BurnoutWarning />
+      <NotificationBanner />
 
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:px-6 lg:pt-6">
         <section>

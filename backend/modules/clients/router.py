@@ -54,6 +54,16 @@ async def delete_client(
     client_id: UUID,
     conn: asyncpg.Connection = Depends(get_connection),
 ):
+    active = await conn.fetchval(
+        "SELECT 1 FROM assignments WHERE client_id = $1 AND status NOT IN ('Submitted', 'Cancelled') AND is_active = TRUE",
+        client_id
+    )
+    if active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete a client with active assignments.",
+        )
+
     row = await soft_delete_client(conn, client_id)
     if row is None:
         raise HTTPException(

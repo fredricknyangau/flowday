@@ -34,6 +34,10 @@ export interface Client {
   is_active: boolean
   created_at: string
   updated_at: string
+  active_assignments_count: number
+  submitted_this_week_count: number
+  overdue_assignments_count: number
+  total_earnings: number
 }
 
 export interface Assignment {

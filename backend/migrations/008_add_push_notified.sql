@@ -1,0 +1,1 @@
+ALTER TABLE assignments ADD COLUMN push_notified BOOLEAN NOT NULL DEFAULT FALSE;

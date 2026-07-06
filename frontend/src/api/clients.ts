@@ -31,3 +31,19 @@ export async function createClient(payload: CreateClientPayload): Promise<Client
     throw new Error(extractMessage(err))
   }
 }
+export async function updateClient({ id, payload }: { id: string; payload: Partial<CreateClientPayload> }): Promise<Client> {
+  try {
+    const { data } = await axios.patch<Client>(`${base}/${id}`, payload)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+export async function deleteClient(id: string): Promise<void> {
+  try {
+    await axios.delete(`${base}/${id}`)
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}

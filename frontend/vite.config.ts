@@ -30,35 +30,11 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        // Cache the API responses for offline resilience
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/v1/schedule'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'flowday-schedule',
-              expiration: { maxAgeSeconds: 60 * 60 * 24 }, // 24 h
-            },
-          },
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/v1/assignments'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'flowday-assignments',
-              networkTimeoutSeconds: 5,
-              expiration: { maxAgeSeconds: 60 * 5 }, // 5 min
-            },
-          },
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/v1/clients'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'flowday-clients',
-              expiration: { maxAgeSeconds: 60 * 60 }, // 1 h
-            },
-          },
-        ],
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        injectionPoint: 'self.__WB_MANIFEST',
       },
     }),
   ],
