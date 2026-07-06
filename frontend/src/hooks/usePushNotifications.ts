@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { api } from '@/lib/api' // using the standard axios instance if available
 import axios from 'axios'
 
 function urlBase64ToUint8Array(base64String: string) {

@@ -46,13 +46,17 @@ registerRoute(
   })
 )
 
+interface CustomNotificationOptions extends NotificationOptions {
+  vibrate?: number[];
+}
+
 // Handle Web Push Events
 self.addEventListener('push', (event) => {
   if (!event.data) return
 
   try {
     const data = event.data.json()
-    const options: NotificationOptions = {
+    const options: CustomNotificationOptions = {
       body: data.body,
       icon: '/icons-192.png',
       badge: '/favicon.svg',

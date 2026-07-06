@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:5173"
     
     # Web Push Notifications (Override these in Railway Variables!)
-    vapid_private_key: str = "Me6i7Lht9oRlAkeKIIrhLlqKkvgO8YA_5VGmL2f-ECA"
-    vapid_subject:     str = "mailto:admin@flowday.app"
+    vapid_private_key: str = "DUMMY_PRIVATE_KEY_SET_IN_ENV"
+    vapid_subject:     str = "mailto:dummy@example.com"
 
     model_config = {
         # Loads .env in local development; env vars take precedence.
