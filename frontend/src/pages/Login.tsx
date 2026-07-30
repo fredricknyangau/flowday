@@ -133,8 +133,20 @@ export function Login() {
           {/* Quick Demo Credentials Help */}
           <div className="mt-6 pt-5 border-t border-gray-100 dark:border-gray-800">
             <div className="bg-emerald-50/60 dark:bg-emerald-950/40 rounded-xl p-3 text-[11px] text-emerald-800 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/60 flex flex-col gap-1">
-              <span className="font-semibold text-emerald-900 dark:text-emerald-200">Default Demo Credentials:</span>
-              <div className="flex justify-between font-mono text-[10px]">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-emerald-900 dark:text-emerald-200">Default Demo Credentials:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('dev@flowday.app')
+                    setPassword('password123')
+                  }}
+                  className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                >
+                  Quick Fill
+                </button>
+              </div>
+              <div className="flex justify-between font-mono text-[10px] mt-1">
                 <span>Email: dev@flowday.app</span>
                 <span>Pass: password123</span>
               </div>
