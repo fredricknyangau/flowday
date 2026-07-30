@@ -5,16 +5,25 @@ from zoneinfo import ZoneInfo
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from dependencies import get_connection
+from dependencies import get_connection, get_tenant_id
 from modules.assignments.queries import (
     create_assignment,
+    create_subtask,
+    delete_subtask,
     get_all_assignments,
+    get_subtasks,
     get_today_assignments,
+    toggle_subtask,
+    update_assignment,
     update_assignment_status,
 )
 from modules.assignments.schemas import (
     AssignmentResponse,
     CreateAssignmentRequest,
+    CreateSubtaskRequest,
+    SubtaskResponse,
+    ToggleSubtaskRequest,
+    UpdateAssignmentRequest,
     UpdateAssignmentStatusRequest,
 )
 
@@ -65,25 +74,33 @@ def _today_utc_window() -> tuple[datetime, datetime]:
 
 
 @router.get("", response_model=list[AssignmentResponse])
-async def list_assignments(conn: asyncpg.Connection = Depends(get_connection)):
-    rows = await get_all_assignments(conn)
+async def list_assignments(
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    rows = await get_all_assignments(conn, tenant_id)
     return [AssignmentResponse(**dict(row)) for row in rows]
 
 
 @router.get("/today", response_model=list[AssignmentResponse])
-async def today_assignments(conn: asyncpg.Connection = Depends(get_connection)):
+async def today_assignments(
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
     day_start, day_end = _today_utc_window()
-    rows = await get_today_assignments(conn, day_start, day_end)
+    rows = await get_today_assignments(conn, day_start, day_end, tenant_id)
     return [AssignmentResponse(**dict(row)) for row in rows]
 
 
 @router.post("", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_new_assignment(
     body: CreateAssignmentRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
     conn: asyncpg.Connection = Depends(get_connection),
 ):
-    row = await create_assignment(conn, body)
-    # create_assignment RETURNING does not include client_name; fetch it with JOIN
+    row = await create_assignment(conn, body, tenant_id)
+    # create_assignment RETURNING does not include client_name; fetch it with JOIN.
+    # tenant_id guard on the re-fetch is belt-and-suspenders.
     full_row = await conn.fetchrow(
         """
         SELECT a.id, a.client_id, c.name AS client_name, c.priority AS client_priority,
@@ -93,22 +110,93 @@ async def create_new_assignment(
         FROM   assignments a
         LEFT JOIN clients c ON c.id = a.client_id
         WHERE  a.id = $1
+          AND  a.tenant_id = $2
         """,
         row["id"],
+        tenant_id,
     )
     return AssignmentResponse(**dict(full_row))
+
+
+@router.put("/{assignment_id}", response_model=AssignmentResponse)
+async def put_assignment(
+    assignment_id: UUID,
+    body: UpdateAssignmentRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    row = await update_assignment(conn, assignment_id, tenant_id, body)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assignment {assignment_id} not found.",
+        )
+    return AssignmentResponse(**dict(row))
 
 
 @router.patch("/{assignment_id}/status", response_model=AssignmentResponse)
 async def patch_assignment_status(
     assignment_id: UUID,
     body: UpdateAssignmentStatusRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
     conn: asyncpg.Connection = Depends(get_connection),
 ):
-    row = await update_assignment_status(conn, assignment_id, body.status)
+    row = await update_assignment_status(conn, assignment_id, body.status, tenant_id)
     if row is None:
+        # "not found" and "wrong tenant" are intentionally indistinguishable.
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Assignment {assignment_id} not found or already deleted.",
         )
     return AssignmentResponse(**dict(row))
+
+
+# ── SUBTASK ROUTERS ──────────────────────────────────────────────────────────
+
+@router.get("/{assignment_id}/subtasks", response_model=list[SubtaskResponse])
+async def list_subtasks(
+    assignment_id: UUID,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    rows = await get_subtasks(conn, assignment_id, tenant_id)
+    return [SubtaskResponse(**dict(r)) for r in rows]
+
+
+@router.post("/{assignment_id}/subtasks", response_model=SubtaskResponse, status_code=status.HTTP_201_CREATED)
+async def add_subtask(
+    assignment_id: UUID,
+    body: CreateSubtaskRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    row = await create_subtask(conn, assignment_id, tenant_id, body.title)
+    return SubtaskResponse(**dict(row))
+
+
+@router.patch("/{assignment_id}/subtasks/{subtask_id}", response_model=SubtaskResponse)
+async def patch_subtask(
+    assignment_id: UUID,
+    subtask_id: UUID,
+    body: ToggleSubtaskRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    row = await toggle_subtask(conn, subtask_id, tenant_id, body.is_completed)
+    if not row:
+        raise HTTPException(status_code=404, detail="Subtask not found.")
+    return SubtaskResponse(**dict(row))
+
+
+@router.delete("/{assignment_id}/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_subtask(
+    assignment_id: UUID,
+    subtask_id: UUID,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    deleted = await delete_subtask(conn, subtask_id, tenant_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Subtask not found.")
+
+

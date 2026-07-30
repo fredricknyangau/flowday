@@ -90,34 +90,34 @@ export function AddAssignment() {
 
   return (
     <div className="pb-24 px-4 pt-4 max-w-lg mx-auto space-y-5">
-      <h1 className="text-base font-semibold text-gray-800">New Assignment</h1>
+      <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">New Assignment</h1>
 
       {/* Success banner for multi-add mode */}
       {successMessage && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <p className="text-sm font-medium text-emerald-700">{successMessage}</p>
+        <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 px-4 py-3">
+          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{successMessage}</p>
         </div>
       )}
 
       {/* Submission error banner */}
       {submitError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm text-red-600">{submitError}</p>
+        <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-4 py-3">
+          <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
         </div>
       )}
 
       {/* Client select */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           Client <span className="text-red-500">*</span>
         </label>
 
         {clientsError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-center justify-between">
-            <p className="text-xs text-red-600">Could not load clients</p>
+          <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-3 py-2 flex items-center justify-between">
+            <p className="text-xs text-red-600 dark:text-red-400">Could not load clients</p>
             <button
               onClick={() => refetchClients()}
-              className="text-xs text-red-600 underline font-medium"
+              className="text-xs text-red-600 dark:text-red-400 underline font-medium"
             >
               Retry
             </button>
@@ -127,7 +127,7 @@ export function AddAssignment() {
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             disabled={clientsLoading}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white disabled:opacity-50"
+            className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white dark:bg-gray-800 disabled:opacity-50"
           >
             <option value="">
               {clientsLoading ? "Loading clients…" : "Select client"}
@@ -146,13 +146,13 @@ export function AddAssignment() {
 
       {/* Assignment type */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           Assignment Type <span className="text-red-500">*</span>
         </label>
         <select
           value={assignmentType}
           onChange={(e) => setAssignmentType(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
+          className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white dark:bg-gray-800"
         >
           <option value="">Select type</option>
           {ASSIGNMENT_TYPES.map((t) => (
@@ -168,7 +168,7 @@ export function AddAssignment() {
 
       {/* Course */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           Course / Subject
         </label>
         <Input
@@ -180,7 +180,7 @@ export function AddAssignment() {
 
       {/* Word count */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           Word Count
         </label>
         <Input
@@ -197,7 +197,7 @@ export function AddAssignment() {
 
       {/* Deadline */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           Deadline <span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -219,7 +219,7 @@ export function AddAssignment() {
 
       {/* Payment */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           Payment (KES)
         </label>
         <Input
@@ -234,7 +234,7 @@ export function AddAssignment() {
 
       {/* Notes */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
           Notes
         </label>
         <Textarea
@@ -258,7 +258,7 @@ export function AddAssignment() {
           variant="outline"
           onClick={() => handleSubmit(true)}
           disabled={isPending}
-          className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold"
+          className="w-full border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 font-semibold"
         >
           {isPending && keepOpen ? "Saving…" : "+ Save & Add Another"}
         </Button>
@@ -266,7 +266,7 @@ export function AddAssignment() {
         <Button
           variant="ghost"
           onClick={() => navigate("/")}
-          className="w-full text-gray-500"
+          className="w-full text-gray-500 dark:text-gray-400"
         >
           Cancel
         </Button>

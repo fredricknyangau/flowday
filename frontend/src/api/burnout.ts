@@ -1,4 +1,5 @@
-import axios, { AxiosError } from 'axios'
+import { AxiosError } from 'axios'
+import apiClient from '@/lib/api-client'
 import { API_BASE_URL } from '@/lib/constants'
 
 export interface BurnoutStatus {
@@ -18,9 +19,23 @@ function extractMessage(err: unknown): string {
 
 export async function fetchBurnoutStatus(): Promise<BurnoutStatus> {
   try {
-    const { data } = await axios.get<BurnoutStatus>(`${API_BASE_URL}/burnout/status`)
+    const { data } = await apiClient.get<BurnoutStatus>(`${API_BASE_URL}/burnout/status`)
     return data
   } catch (err) {
     throw new Error(extractMessage(err))
   }
 }
+
+export interface ProtectedStreak {
+  streak_days: number
+}
+
+export async function fetchProtectedStreak(): Promise<ProtectedStreak> {
+  try {
+    const { data } = await apiClient.get<ProtectedStreak>(`${API_BASE_URL}/burnout/streak`)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+

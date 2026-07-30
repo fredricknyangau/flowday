@@ -1,8 +1,10 @@
-import axios, { AxiosError } from 'axios'
+import { AxiosError } from 'axios'
+import apiClient from '@/lib/api-client'
 import { API_BASE_URL } from '@/lib/constants'
 import type {
   Assignment,
   CreateAssignmentPayload,
+  Subtask,
   UpdateAssignmentStatusPayload,
 } from '@/types'
 
@@ -20,7 +22,7 @@ function extractMessage(err: unknown): string {
 
 export async function fetchTodayAssignments(): Promise<Assignment[]> {
   try {
-    const { data } = await axios.get<Assignment[]>(`${base}/today`)
+    const { data } = await apiClient.get<Assignment[]>(`${base}/today`)
     return data
   } catch (err) {
     throw new Error(extractMessage(err))
@@ -29,7 +31,7 @@ export async function fetchTodayAssignments(): Promise<Assignment[]> {
 
 export async function fetchAllAssignments(): Promise<Assignment[]> {
   try {
-    const { data } = await axios.get<Assignment[]>(base)
+    const { data } = await apiClient.get<Assignment[]>(base)
     return data
   } catch (err) {
     throw new Error(extractMessage(err))
@@ -40,7 +42,7 @@ export async function createAssignment(
   payload: CreateAssignmentPayload,
 ): Promise<Assignment> {
   try {
-    const { data } = await axios.post<Assignment>(base, payload)
+    const { data } = await apiClient.post<Assignment>(base, payload)
     return data
   } catch (err) {
     throw new Error(extractMessage(err))
@@ -52,9 +54,58 @@ export async function updateAssignmentStatus(
   payload: UpdateAssignmentStatusPayload,
 ): Promise<Assignment> {
   try {
-    const { data } = await axios.patch<Assignment>(`${base}/${id}/status`, payload)
+    const { data } = await apiClient.patch<Assignment>(`${base}/${id}/status`, payload)
     return data
   } catch (err) {
     throw new Error(extractMessage(err))
   }
 }
+
+export async function updateAssignment(
+  id: string,
+  payload: CreateAssignmentPayload,
+): Promise<Assignment> {
+  try {
+    const { data } = await apiClient.put<Assignment>(`${base}/${id}`, payload)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+export async function fetchSubtasks(assignmentId: string): Promise<Subtask[]> {
+  try {
+    const { data } = await apiClient.get<Subtask[]>(`${base}/${assignmentId}/subtasks`)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+export async function createSubtask(assignmentId: string, title: string): Promise<Subtask> {
+  try {
+    const { data } = await apiClient.post<Subtask>(`${base}/${assignmentId}/subtasks`, { title })
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+export async function toggleSubtask(assignmentId: string, subtaskId: string, is_completed: boolean): Promise<Subtask> {
+  try {
+    const { data } = await apiClient.patch<Subtask>(`${base}/${assignmentId}/subtasks/${subtaskId}`, { is_completed })
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+export async function deleteSubtask(assignmentId: string, subtaskId: string): Promise<void> {
+  try {
+    await apiClient.delete(`${base}/${assignmentId}/subtasks/${subtaskId}`)
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+

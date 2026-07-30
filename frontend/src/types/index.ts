@@ -102,3 +102,13 @@ export interface WeekDay {
   is_past: boolean
   assignments: Assignment[]
 }
+
+export interface Subtask {
+  id: string
+  assignment_id: string
+  title: string
+  is_completed: boolean
+  created_at: string
+}
+
+

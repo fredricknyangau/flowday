@@ -1,4 +1,5 @@
-import axios, { AxiosError } from 'axios'
+import { AxiosError } from 'axios'
+import apiClient from '@/lib/api-client'
 import { API_BASE_URL } from '@/lib/constants'
 import type { ScheduleBlock } from '@/types'
 
@@ -14,7 +15,7 @@ function extractMessage(err: unknown): string {
 
 export async function fetchSchedule(): Promise<ScheduleBlock[]> {
   try {
-    const { data } = await axios.get<ScheduleBlock[]>(`${API_BASE_URL}/schedule`)
+    const { data } = await apiClient.get<ScheduleBlock[]>(`${API_BASE_URL}/schedule`)
     return data
   } catch (err) {
     throw new Error(extractMessage(err))
@@ -22,7 +23,7 @@ export async function fetchSchedule(): Promise<ScheduleBlock[]> {
 }
 export async function skipScheduleBlock({ id, date, skipped }: { id: string, date: string, skipped: boolean }): Promise<void> {
   try {
-    await axios.post(`${API_BASE_URL}/schedule/${id}/skip`, { date, skipped })
+    await apiClient.post(`${API_BASE_URL}/schedule/${id}/skip`, { date, skipped })
   } catch (err) {
     throw new Error(extractMessage(err))
   }

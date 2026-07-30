@@ -11,7 +11,7 @@ const tabs = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-10 bg-white border-t border-gray-100">
+    <nav className="fixed bottom-0 left-0 right-0 z-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 transition-colors">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
         {tabs.map(({ to, label, Icon }) => (
           <NavLink
@@ -22,8 +22,8 @@ export function BottomNav() {
               cn(
                 'flex flex-col items-center gap-0.5 px-6 py-2 rounded-xl transition-colors',
                 isActive
-                  ? 'text-emerald-600'
-                  : 'text-gray-400 hover:text-gray-600'
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
               )
             }
           >

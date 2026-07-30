@@ -36,21 +36,21 @@ export function BurnoutWarning() {
   }
 
   return (
-    <div className="mx-4 mt-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl relative">
+    <div className="mx-4 mt-4 p-4 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-2xl relative transition-colors">
       <button 
         onClick={handleDismiss}
-        className="absolute top-3 right-3 text-rose-400 hover:text-rose-600 p-1"
+        className="absolute top-3 right-3 text-rose-400 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 p-1"
         aria-label="Dismiss"
       >
         <X size={16} />
       </button>
       <div className="flex items-start gap-3">
-        <div className="bg-rose-100 p-2 rounded-full shrink-0">
-          <AlertTriangle className="text-rose-600" size={20} />
+        <div className="bg-rose-100 dark:bg-rose-900/80 p-2 rounded-full shrink-0">
+          <AlertTriangle className="text-rose-600 dark:text-rose-300" size={20} />
         </div>
         <div>
-          <h3 className="text-sm font-bold text-rose-900">Take a breath</h3>
-          <p className="text-xs text-rose-700 mt-1 pr-4">
+          <h3 className="text-sm font-bold text-rose-900 dark:text-rose-200">Take a breath</h3>
+          <p className="text-xs text-rose-700 dark:text-rose-300 mt-1 pr-4">
             It looks like you're pushing hard. {data.trigger_signal} Consider resting or rescheduling non-urgent work to protect your energy.
           </p>
         </div>

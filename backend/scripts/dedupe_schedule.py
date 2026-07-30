@@ -1,3 +1,10 @@
+# NOTE: One-time pre-constraint cleanup script.
+# This was run before migration 010 (uq_schedule_blocks_time_label) was applied
+# to remove existing duplicate (start_time, label) pairs from schedule_blocks.
+# The unique constraint added by migration 010 prevents new duplicates, so this
+# script should not need to be run again under normal circumstances.
+# Kept here for reference / disaster recovery only.
+
 import asyncio
 import sys
 import os

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import apiClient from '@/lib/api-client'
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -49,12 +49,15 @@ export function usePushNotifications() {
           })
         }
 
-        // Send to backend
+        // Send to backend using the shared apiClient so the JWT Authorization
+        // header (and the transitional X-API-Key) are attached automatically.
+        //
+        // NOTE: This is a regular browser-tab fetch, NOT a service-worker fetch.
+        // Service workers handle *incoming* push events (sw.ts) — they don't
+        // make this registration call. The browser tab has full access to the
+        // auth token, so using apiClient here is correct and safe.
         const subJson = subscription.toJSON()
-        await axios.post(
-          `${import.meta.env.VITE_API_URL || ''}/push/subscribe`,
-          subJson
-        )
+        await apiClient.post('/push/subscribe', subJson)
       }
     } catch (error) {
       console.error('Error subscribing to push notifications:', error)

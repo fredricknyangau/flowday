@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 AssignmentType = Literal[
@@ -64,15 +64,40 @@ class CreateAssignmentRequest(BaseModel):
     payment_kes: Decimal | None = Field(default=None, ge=0)
     notes: str | None = None
 
-    # estimated_hours is computed — not accepted from the caller
-    estimated_hours: Decimal | None = Field(default=None, exclude=True, init=False)
-
-    @model_validator(mode="after")
-    def compute_estimated_hours(self) -> "CreateAssignmentRequest":
-        if self.word_count is not None:
-            self.estimated_hours = _ceil_to_half(self.word_count / 300)
-        return self
+    # estimated_hours is NOT accepted from the caller — it is derived from
+    # word_count in create_assignment() (queries.py) via _ceil_to_half.
+    # It is intentionally absent here so Pydantic never touches it.
 
 
 class UpdateAssignmentStatusRequest(BaseModel):
     status: AssignmentStatus
+
+
+class UpdateAssignmentRequest(BaseModel):
+    client_id: UUID
+    assignment_type: AssignmentType
+    course: str | None = Field(default=None, max_length=150)
+    word_count: int | None = Field(default=None, gt=0)
+    deadline: datetime
+    payment_kes: Decimal | None = Field(default=None, ge=0)
+    notes: str | None = None
+
+
+class SubtaskResponse(BaseModel):
+    id: UUID
+    assignment_id: UUID
+    title: str
+    is_completed: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CreateSubtaskRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+
+
+class ToggleSubtaskRequest(BaseModel):
+    is_completed: bool
+
+
