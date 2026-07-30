@@ -29,6 +29,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Migration runner notice: {e}")
 
+    # Guarantee default demo user exists and has valid password
+    try:
+        from modules.auth.security import hash_password
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO tenants (id, name, is_active)
+                VALUES ('a0000000-0000-4000-8000-000000000001', 'Default Tenant', TRUE)
+                ON CONFLICT (id) DO NOTHING;
+            """)
+            demo_hash = hash_password("password123")
+            await conn.execute("""
+                INSERT INTO users (id, tenant_id, email, password_hash, full_name)
+                VALUES (
+                    'b0000000-0000-4000-8000-000000000001',
+                    'a0000000-0000-4000-8000-000000000001',
+                    'dev@flowday.app',
+                    $1,
+                    'Default Admin'
+                )
+                ON CONFLICT (email) DO UPDATE
+                SET password_hash = $1;
+            """, demo_hash)
+            print("Demo user (dev@flowday.app / password123) successfully verified.")
+    except Exception as e:
+        print(f"Demo user seed notice: {e}")
+
     global _push_task
     _push_task = asyncio.create_task(run_push_notification_worker())
     yield
