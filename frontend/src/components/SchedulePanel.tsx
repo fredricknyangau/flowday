@@ -1,18 +1,33 @@
 import { fetchSchedule } from '@/api/schedule'
 import { useQuery } from '@tanstack/react-query'
-import { isWithinInterval, setHours, setMinutes } from 'date-fns'
+import { addDays, isWithinInterval, setHours, setMinutes, subDays } from 'date-fns'
+import { ShieldCheck } from 'lucide-react'
 import { ScheduleBlock } from './ScheduleBlock'
 
 function getActiveBlockId(blocks: { id: string; start_time: string }[]): string | null {
   const now = new Date()
   for (let i = 0; i < blocks.length; i++) {
     const [h, m] = blocks[i].start_time.split(':').map(Number)
-    const start  = setMinutes(setHours(new Date(), h), m)
-    const next   = blocks[i + 1]
-    if (!next) return blocks[i].id
-    const [nh, nm] = next.start_time.split(':').map(Number)
-    const end = setMinutes(setHours(new Date(), nh), nm)
+    const start = setMinutes(setHours(new Date(), h), m)
+    const next  = blocks[i + 1]
+    
+    let end: Date
+    if (next) {
+      const [nh, nm] = next.start_time.split(':').map(Number)
+      end = setMinutes(setHours(new Date(), nh), nm)
+    } else {
+      end = addDays(start, 1)
+    }
+
+    if (end <= start) {
+      end = addDays(end, 1)
+    }
+
     if (isWithinInterval(now, { start, end })) return blocks[i].id
+
+    const prevStart = subDays(start, 1)
+    const prevEnd   = subDays(end, 1)
+    if (isWithinInterval(now, { start: prevStart, end: prevEnd })) return blocks[i].id
   }
   return null
 }
@@ -61,9 +76,23 @@ export function SchedulePanel() {
   }
 
   const activeId = getActiveBlockId(blocks)
+  const protectedCount = blocks.filter((b) => b.is_protected).length
 
   return (
     <div className="space-y-2">
+      <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-emerald-900">Protected Routine</p>
+            <p className="text-[11px] text-emerald-700">Reading, Learning, Nap & Sleep</p>
+          </div>
+        </div>
+        <span className="text-[11px] font-bold bg-white text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+          {protectedCount} Protected
+        </span>
+      </div>
+
       {blocks.map((block) => (
         <ScheduleBlock key={block.id} block={block} isActive={block.id === activeId} />
       ))}

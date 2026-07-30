@@ -86,12 +86,12 @@ async def create_new_assignment(
     # create_assignment RETURNING does not include client_name; fetch it with JOIN
     full_row = await conn.fetchrow(
         """
-        SELECT a.id, a.client_id, c.name AS client_name,
+        SELECT a.id, a.client_id, c.name AS client_name, c.priority AS client_priority,
                a.assignment_type, a.course, a.word_count, a.estimated_hours,
                a.deadline, a.status, a.payment_kes, a.notes, a.is_active,
                a.received_at, a.submitted_at, a.created_at, a.updated_at
         FROM   assignments a
-        JOIN   clients c ON c.id = a.client_id
+        LEFT JOIN clients c ON c.id = a.client_id
         WHERE  a.id = $1
         """,
         row["id"],

@@ -4,7 +4,7 @@ A calm day planning system built for academic freelancers managing
 multiple clients, same-day deadlines, and overnight work sessions.
 
 ## Status
-> Phase 0 — Project setup and documentation
+> MVP Complete — Production Ready (Assignment Intake, Urgency Countdown, Overnight Routine, Client Priority Tie-Breaking, Offline PWA)
 
 ## Docs
 - [Product Requirements Document](docs/PRD.md)

@@ -36,7 +36,8 @@ def _ceil_to_half(value: float) -> Decimal:
 class AssignmentResponse(BaseModel):
     id: UUID
     client_id: UUID
-    client_name: str
+    client_name: str | None = None
+    client_priority: str | None = None
     assignment_type: AssignmentType
     course: str | None
     word_count: int | None

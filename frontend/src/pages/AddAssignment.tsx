@@ -26,6 +26,9 @@ export function AddAssignment() {
   const [notes, setNotes] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const [keepOpen, setKeepOpen] = useState(false);
 
   const {
     data: clients = [],
@@ -41,7 +44,16 @@ export function AddAssignment() {
     mutationFn: createAssignment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
-      navigate("/");
+      if (keepOpen) {
+        setSuccessMessage("Assignment saved! Client & deadline kept for next entry.");
+        setCourse("");
+        setWordCount(null);
+        setPaymentKes(null);
+        setNotes("");
+        setTimeout(() => setSuccessMessage(null), 4000);
+      } else {
+        navigate("/");
+      }
     },
     onError: (err: Error) => {
       setSubmitError(err.message);
@@ -58,10 +70,12 @@ export function AddAssignment() {
     return Object.keys(e).length === 0;
   }
 
-  function handleSubmit() {
+  function handleSubmit(addAnother = false) {
     setSubmitError(null);
+    setSuccessMessage(null);
     if (!validate()) return;
 
+    setKeepOpen(addAnother);
     const localDeadline = new Date(`${deadlineDate}T${deadlineTime}:00`);
     mutate({
       client_id: clientId,
@@ -77,6 +91,13 @@ export function AddAssignment() {
   return (
     <div className="pb-24 px-4 pt-4 max-w-lg mx-auto space-y-5">
       <h1 className="text-base font-semibold text-gray-800">New Assignment</h1>
+
+      {/* Success banner for multi-add mode */}
+      {successMessage && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <p className="text-sm font-medium text-emerald-700">{successMessage}</p>
+        </div>
+      )}
 
       {/* Submission error banner */}
       {submitError && (
@@ -113,7 +134,7 @@ export function AddAssignment() {
             </option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {c.name} {c.priority ? `(${c.priority} priority)` : ""}
               </option>
             ))}
           </select>
@@ -224,18 +245,28 @@ export function AddAssignment() {
         />
       </div>
 
-      <div className="space-y-3 pt-2">
+      <div className="space-y-2 pt-2">
         <Button
-          onClick={handleSubmit}
+          onClick={() => handleSubmit(false)}
           disabled={isPending}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
         >
-          {isPending ? "Saving…" : "Save Assignment"}
+          {isPending && !keepOpen ? "Saving…" : "Save Assignment"}
         </Button>
+
         <Button
           variant="outline"
+          onClick={() => handleSubmit(true)}
+          disabled={isPending}
+          className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold"
+        >
+          {isPending && keepOpen ? "Saving…" : "+ Save & Add Another"}
+        </Button>
+
+        <Button
+          variant="ghost"
           onClick={() => navigate("/")}
-          className="w-full"
+          className="w-full text-gray-500"
         >
           Cancel
         </Button>

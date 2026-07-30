@@ -44,6 +44,7 @@ export interface Assignment {
   id: string
   client_id: string
   client_name: string
+  client_priority?: Priority
   assignment_type: AssignmentType
   course: string | null
   word_count: number | null

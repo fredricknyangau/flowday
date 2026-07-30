@@ -10,6 +10,7 @@ _ASSIGNMENT_COLS = """
     a.id,
     a.client_id,
     c.name        AS client_name,
+    c.priority    AS client_priority,
     a.assignment_type,
     a.course,
     a.word_count,
@@ -31,7 +32,7 @@ async def get_all_assignments(conn: asyncpg.Connection) -> list[asyncpg.Record]:
         f"""
         SELECT {_ASSIGNMENT_COLS}
         FROM   assignments a
-        JOIN   clients c ON c.id = a.client_id
+        LEFT JOIN clients c ON c.id = a.client_id
         WHERE  a.is_active = TRUE
         ORDER  BY a.deadline ASC
         """
@@ -53,7 +54,7 @@ async def get_today_assignments(
         f"""
         SELECT {_ASSIGNMENT_COLS}
         FROM   assignments a
-        JOIN   clients c ON c.id = a.client_id
+        LEFT JOIN clients c ON c.id = a.client_id
         WHERE  a.is_active = TRUE
           AND  a.deadline >= $1
           AND  a.deadline <  $2
@@ -150,7 +151,7 @@ async def update_assignment_status(
         f"""
         SELECT {_ASSIGNMENT_COLS}
         FROM   assignments a
-        JOIN   clients c ON c.id = a.client_id
+        LEFT JOIN clients c ON c.id = a.client_id
         WHERE  a.id = $1
         """,
         assignment_id,

@@ -201,7 +201,12 @@ export function Clients() {
                     <div className="flex gap-1">
                       {client.active_assignments_count === 0 && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id) }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (window.confirm(`Are you sure you want to archive client "${client.name}"?`)) {
+                              deleteMutation.mutate(client.id)
+                            }
+                          }}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Archive Client"
                         >

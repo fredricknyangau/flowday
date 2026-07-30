@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Lock, SkipForward } from 'lucide-react'
+import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { BLOCK_TYPE_COLORS } from '@/lib/constants'
 import type { ScheduleBlock as ScheduleBlockType } from '@/types'
@@ -18,7 +19,7 @@ export function ScheduleBlock({ block, isActive }: Props) {
     e.stopPropagation()
     const newValue = !skipped
     setSkipped(newValue)
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = format(new Date(), 'yyyy-MM-dd')
     try {
       await skipScheduleBlock({ id: block.id, date: todayStr, skipped: newValue })
     } catch (err) {

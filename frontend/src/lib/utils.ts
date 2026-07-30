@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { differenceInMinutes, differenceInHours } from 'date-fns'
+import { differenceInMinutes } from 'date-fns'
 import type { Assignment } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
@@ -11,11 +11,10 @@ export function getUrgencyLevel(deadline: string): 'overdue' | 'critical' | 'war
   const now = new Date()
   const due = new Date(deadline)
   const minutesLeft = differenceInMinutes(due, now)
-  const hoursLeft = differenceInHours(due, now)
 
-  if (minutesLeft < 0) return 'overdue'
-  if (hoursLeft < 2)   return 'critical'
-  if (hoursLeft < 6)   return 'warning'
+  if (minutesLeft < 0)   return 'overdue'
+  if (minutesLeft < 120) return 'critical'
+  if (minutesLeft < 360) return 'warning'
   return 'safe'
 }
 
@@ -41,10 +40,20 @@ export function estimateHours(wordCount: number): number {
   return Math.ceil(wordCount / 300 / 0.5) * 0.5
 }
 
+const PRIORITY_SCORE: Record<string, number> = {
+  High: 3,
+  Medium: 2,
+  Low: 1,
+}
+
 export function sortAssignmentsByUrgency(assignments: Assignment[]): Assignment[] {
-  return [...assignments].sort(
-    (a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-  )
+  return [...assignments].sort((a, b) => {
+    const diff = new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+    if (diff !== 0) return diff
+    const scoreA = a.client_priority ? PRIORITY_SCORE[a.client_priority] || 2 : 2
+    const scoreB = b.client_priority ? PRIORITY_SCORE[b.client_priority] || 2 : 2
+    return scoreB - scoreA
+  })
 }
 
 export function getDayBoundary(): { start: Date; end: Date } {
