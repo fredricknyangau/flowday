@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TABLE clients (
+CREATE TABLE IF NOT EXISTS clients (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name          VARCHAR(100)  NOT NULL,
     platform      VARCHAR(50)   NOT NULL DEFAULT 'WhatsApp',

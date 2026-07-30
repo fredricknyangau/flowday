@@ -16,7 +16,7 @@ interface Props {
   onToggleSelect?: () => void
 }
 
-export function AssignmentCard({ assignment, isSelectable, isSelected, onToggleSelect }: Props) {
+export function AssignmentCard({ assignment, isSelected, onToggleSelect }: Props) {
   const queryClient = useQueryClient()
   const level       = getUrgencyLevel(assignment.deadline)
   const [isExpanded, setIsExpanded] = useState(false)
