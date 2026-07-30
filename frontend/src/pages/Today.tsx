@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
-import { Clock, Filter, AlertCircle, Play, Sparkles, CheckCircle2 } from 'lucide-react'
+import { Clock, AlertCircle, Sparkles, CheckCircle2 } from 'lucide-react'
 import { fetchTodayAssignments } from '@/api/assignments'
 import { AssignmentCard } from '@/components/AssignmentCard'
 import { SchedulePanel } from '@/components/SchedulePanel'
