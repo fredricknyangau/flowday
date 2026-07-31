@@ -36,17 +36,34 @@ export function usePushNotifications() {
       setPermission(perm)
 
       if (perm === 'granted') {
+        const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
+        if (!vapidKey) {
+          console.warn('[Push] VITE_VAPID_PUBLIC_KEY is missing from environment variables.')
+          alert('Push notifications are not configured yet (VITE_VAPID_PUBLIC_KEY is missing in environment variables).')
+          return
+        }
+
         const registration = await navigator.serviceWorker.ready
-        const applicationServerKey = urlBase64ToUint8Array(
-          import.meta.env.VITE_VAPID_PUBLIC_KEY
-        )
+        const applicationServerKey = urlBase64ToUint8Array(vapidKey)
 
         let subscription = await registration.pushManager.getSubscription()
         if (!subscription) {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey,
-          })
+          try {
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey,
+            })
+          } catch (subErr) {
+            console.warn('[Push] Direct subscribe failed, attempting to clear existing registration:', subErr)
+            const oldSub = await registration.pushManager.getSubscription()
+            if (oldSub) {
+              await oldSub.unsubscribe()
+            }
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey,
+            })
+          }
         }
 
         // Send to backend using the shared apiClient so the JWT Authorization
