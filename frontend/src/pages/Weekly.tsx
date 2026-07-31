@@ -4,6 +4,7 @@ import { format, startOfWeek, addDays, isToday, isPast, isSameDay } from 'date-f
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { Search, X } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
 import { AssignmentCard } from '@/components/AssignmentCard'
 import type { WeekDay } from '@/types'
 
@@ -23,6 +24,7 @@ export function Weekly() {
   })
 
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const weekEnd   = addDays(weekStart, 7)
 
   const days: WeekDay[] = Array.from({ length: 7 }, (_, i) => {
     const date           = addDays(weekStart, i)
@@ -59,27 +61,67 @@ export function Weekly() {
     }
   })
 
-  const totalAssignments = assignments.filter((a) => a.status !== 'Cancelled').length
-  const submitted        = assignments.filter((a) => a.status === 'Submitted').length
+  const totalAssignments  = assignments.filter((a) => a.status !== 'Cancelled').length
+  const submitted         = assignments.filter((a) => a.status === 'Submitted').length
+  const completedThisWeek = assignments.filter((a) => {
+    if (a.status !== 'Submitted' || !a.submitted_at) return false
+    const subDate = new Date(a.submitted_at)
+    return subDate >= weekStart && subDate < weekEnd
+  }).length
+
   const pending          = assignments.filter((a) => ['Not started', 'In progress'].includes(a.status)).length
   const overdue          = assignments.filter((a) => a.status === 'Overdue').length
   const totalHours       = assignments
     .filter((a) => a.status !== 'Submitted' && a.status !== 'Cancelled')
     .reduce((sum, a) => sum + (a.estimated_hours ? parseFloat(a.estimated_hours) : 0), 0)
   const totalEarnings    = assignments
-    .filter((a) => a.status === 'Submitted')
+    .filter((a) => a.status === 'Submitted' && !!a.paid_at)
+    .reduce((sum, a) => sum + (a.payment_kes ? parseFloat(a.payment_kes) : 0), 0)
+  const awaitingPayment  = assignments
+    .filter((a) => a.status === 'Submitted' && !!a.payment_kes && !a.paid_at)
     .reduce((sum, a) => sum + (a.payment_kes ? parseFloat(a.payment_kes) : 0), 0)
 
   return (
     <div className="pb-24 pt-2">
+      {/* View Switcher & Date Header */}
       <div className="px-4 mb-3 flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-          {format(weekStart, 'd MMM')} to {format(addDays(weekStart, 6), 'd MMM yyyy')}
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+            <NavLink
+              to="/weekly"
+              className={({ isActive }) =>
+                cn(
+                  'px-2.5 py-1 text-xs rounded-md font-semibold transition-colors',
+                  isActive
+                    ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-xs'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                )
+              }
+            >
+              Week
+            </NavLink>
+            <NavLink
+              to="/monthly"
+              className={({ isActive }) =>
+                cn(
+                  'px-2.5 py-1 text-xs rounded-md font-semibold transition-colors',
+                  isActive
+                    ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-xs'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                )
+              }
+            >
+              Month
+            </NavLink>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+            {format(weekStart, 'd MMM')} – {format(addDays(weekStart, 6), 'd MMM yyyy')}
+          </p>
+        </div>
 
         {/* Live Search Bar */}
         {!isLoading && !isError && (
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[180px]">
             <Search size={14} className="absolute left-3 top-2 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
@@ -101,10 +143,9 @@ export function Weekly() {
       </div>
 
       <div className="px-4 space-y-2">
-        {/* Loading skeleton */}
         {isLoading &&
           [...Array(7)].map((_, i) => (
-            <div key={i} className="h-14 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
+            <div key={`skel-weekly-${i}`} className="h-14 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
           ))}
 
         {/* Error state */}
@@ -195,13 +236,15 @@ export function Weekly() {
           </p>
           {[
             ['Total assignments',     totalAssignments],
-            ['Submitted',             submitted],
+            ['Completed this week',   completedThisWeek],
+            ['Submitted (all time)',  submitted],
             ['Still pending',         pending],
             ['Overdue',               overdue],
             ['Total estimated hours', `${totalHours.toFixed(1)} hrs`],
-            ['Earnings this week',    `KES ${totalEarnings.toLocaleString()}`],
+            ['Paid earnings',         `KES ${totalEarnings.toLocaleString()}`],
+            ['Awaiting payment',      `KES ${awaitingPayment.toLocaleString()}`],
           ].map(([label, value]) => (
-            <div key={label as string} className="flex justify-between text-sm">
+            <div key={label as string} className={`flex justify-between text-sm ${label === 'Awaiting payment' && awaitingPayment > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>
               <span className="text-gray-600 dark:text-gray-400">{label}</span>
               <span className="font-semibold text-gray-800 dark:text-gray-200">{value}</span>
             </div>

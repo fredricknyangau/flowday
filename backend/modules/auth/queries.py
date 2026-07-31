@@ -1,4 +1,5 @@
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -104,3 +105,75 @@ async def get_user_by_id(
         user_id,
         tenant_id,
     )
+
+
+async def get_tenant_settings(
+    conn: asyncpg.Connection,
+    tenant_id: UUID,
+) -> tuple[ZoneInfo, int, str]:
+    row = await conn.fetchrow(
+        "SELECT timezone, day_boundary_hour FROM tenants WHERE id = $1",
+        tenant_id,
+    )
+    tz_str = row["timezone"] if (row and row["timezone"]) else "UTC"
+    boundary_hour = row["day_boundary_hour"] if (row and row["day_boundary_hour"] is not None) else 0
+
+    try:
+        tz = ZoneInfo(tz_str)
+    except Exception:
+        tz = ZoneInfo("UTC")
+        tz_str = "UTC"
+
+    return tz, boundary_hour, tz_str
+
+
+async def get_tenant_settings_record(
+    conn: asyncpg.Connection,
+    tenant_id: UUID,
+) -> asyncpg.Record | None:
+    return await conn.fetchrow(
+        "SELECT timezone, day_boundary_hour, daily_capacity_hours, reminder_minutes_before FROM tenants WHERE id = $1",
+        tenant_id,
+    )
+
+
+async def update_tenant_settings(
+    conn: asyncpg.Connection,
+    tenant_id: UUID,
+    timezone: str | None = None,
+    day_boundary_hour: int | None = None,
+    daily_capacity_hours: float | None = None,
+    reminder_minutes_before: int | None = None,
+) -> asyncpg.Record | None:
+    fields = {}
+    if timezone is not None:
+        fields["timezone"] = timezone
+    if day_boundary_hour is not None:
+        fields["day_boundary_hour"] = day_boundary_hour
+    if daily_capacity_hours is not None:
+        fields["daily_capacity_hours"] = daily_capacity_hours
+    if reminder_minutes_before is not None:
+        fields["reminder_minutes_before"] = reminder_minutes_before
+
+    if not fields:
+        return await conn.fetchrow(
+            "SELECT timezone, day_boundary_hour, daily_capacity_hours, reminder_minutes_before FROM tenants WHERE id = $1",
+            tenant_id,
+        )
+
+    set_clauses = [f"{col} = ${i + 1}" for i, col in enumerate(fields)]
+    set_sql = ", ".join(set_clauses)
+    values = list(fields.values())
+    values.append(tenant_id)
+
+    return await conn.fetchrow(
+        f"""
+        UPDATE tenants
+        SET {set_sql}
+        WHERE id = ${len(values)}
+        RETURNING timezone, day_boundary_hour, daily_capacity_hours, reminder_minutes_before
+        """,
+        *values,
+    )
+
+

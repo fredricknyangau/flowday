@@ -34,30 +34,26 @@ async def mark_overdue_assignments(pool: asyncpg.Pool) -> None:
     and the status update are always consistent.
     """
     async with pool.acquire() as conn:
-        # Fetch every assignment that needs to flip to Overdue.
-        # We lock the rows (FOR UPDATE) so a concurrent request can't
-        # race us and produce a duplicate log entry.
-        # tenant_id is included so it can be denormalized into the log row.
-        candidates = await conn.fetch(
-            """
-            SELECT id, tenant_id, status AS previous_status
-            FROM   assignments
-            WHERE  is_active = TRUE
-              AND  status IN ('Not started', 'In progress')
-              AND  deadline < NOW()
-            FOR UPDATE
-            """
-        )
+        async with conn.transaction():
+            candidates = await conn.fetch(
+                """
+                SELECT id, tenant_id, status AS previous_status
+                FROM   assignments
+                WHERE  is_active = TRUE
+                  AND  status IN ('Not started', 'In progress')
+                  AND  deadline < NOW()
+                FOR UPDATE
+                """
+            )
 
-        if not candidates:
-            return
+            if not candidates:
+                return
 
-        for row in candidates:
-            assignment_id   = row["id"]
-            tenant_id       = row["tenant_id"]
-            previous_status = row["previous_status"]
+            for row in candidates:
+                assignment_id   = row["id"]
+                tenant_id       = row["tenant_id"]
+                previous_status = row["previous_status"]
 
-            async with conn.transaction():
                 await conn.execute(
                     """
                     UPDATE assignments
@@ -67,8 +63,6 @@ async def mark_overdue_assignments(pool: asyncpg.Pool) -> None:
                     """,
                     assignment_id,
                 )
-                # Denormalize tenant_id into the log so RLS on assignment_status_log
-                # can evaluate it without a JOIN back to assignments.
                 await conn.execute(
                     """
                     INSERT INTO assignment_status_log

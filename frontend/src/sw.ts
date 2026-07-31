@@ -39,9 +39,9 @@ registerRoute(
 )
 
 registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/v1/clients'),
+  ({ url }) => url.pathname.startsWith('/api/v1/contexts') || url.pathname.startsWith('/api/v1/clients'),
   new StaleWhileRevalidate({
-    cacheName: 'flowday-clients',
+    cacheName: 'flowday-contexts',
     plugins: [new ExpirationPlugin({ maxAgeSeconds: 60 * 60 })],
   })
 )

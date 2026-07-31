@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from modules.assignments.router import router as assignments_router
 from modules.auth.router import router as auth_router
 from modules.burnout.router import router as burnout_router
-from modules.clients.router import router as clients_router
+from modules.contexts.router import router as contexts_router, clients_alias_router
 from modules.push.router import router as push_router
 from modules.push.tasks import run_push_notification_worker
 from modules.schedule.router import router as schedule_router
@@ -22,39 +22,13 @@ _push_task = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await get_pool()
+    pool = await get_pool()
     try:
         from scripts.migrate import run_migrations
-        await run_migrations()
+        async with pool.acquire() as conn:
+            await run_migrations(conn)
     except Exception as e:
         print(f"Migration runner notice: {e}")
-
-    # Guarantee default demo user exists and has valid password
-    try:
-        from modules.auth.security import hash_password
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO tenants (id, name, is_active)
-                VALUES ('a0000000-0000-4000-8000-000000000001', 'Default Tenant', TRUE)
-                ON CONFLICT (id) DO NOTHING;
-            """)
-            demo_hash = hash_password("password123")
-            await conn.execute("""
-                INSERT INTO users (id, tenant_id, email, password_hash, full_name)
-                VALUES (
-                    'b0000000-0000-4000-8000-000000000001',
-                    'a0000000-0000-4000-8000-000000000001',
-                    'dev@flowday.app',
-                    $1,
-                    'Default Admin'
-                )
-                ON CONFLICT (email) DO UPDATE
-                SET password_hash = $1;
-            """, demo_hash)
-            print("Demo user (dev@flowday.app / password123) successfully verified.")
-    except Exception as e:
-        print(f"Demo user seed notice: {e}")
 
     global _push_task
     _push_task = asyncio.create_task(run_push_notification_worker())
@@ -67,7 +41,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Flowday API",
-    description="Backend for the Flowday day planning system",
+    description="""
+Flowday Application Entrypoint & Lifespan Configuration.
+""",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -81,8 +57,9 @@ app.add_middleware(
 )
 
 # Authenticated routers — all requests require a valid Bearer JWT.
-app.include_router(clients_router,     prefix="/api/v1/clients",     tags=["clients"],     dependencies=[Depends(get_tenant_id)])
-app.include_router(assignments_router, prefix="/api/v1/assignments", tags=["assignments"], dependencies=[Depends(get_tenant_id)])
+app.include_router(contexts_router,      prefix="/api/v1/contexts",    tags=["contexts"],                   dependencies=[Depends(get_tenant_id)])
+app.include_router(clients_alias_router, prefix="/api/v1/clients",     tags=["clients (deprecated alias)"], dependencies=[Depends(get_tenant_id)])
+app.include_router(assignments_router,  prefix="/api/v1/assignments",  tags=["assignments"],                dependencies=[Depends(get_tenant_id)])
 app.include_router(schedule_router,    prefix="/api/v1/schedule",    tags=["schedule"],    dependencies=[Depends(get_tenant_id)])
 app.include_router(burnout_router,     prefix="/api/v1/burnout",     tags=["burnout"],     dependencies=[Depends(get_tenant_id)])
 app.include_router(push_router,        prefix="/api/v1/push",        tags=["push"],        dependencies=[Depends(get_tenant_id)])
@@ -119,13 +96,19 @@ async def check_violation_handler(request: Request, exc: asyncpg.CheckViolationE
 async def generic_handler(request: Request, exc: Exception):
     import logging
     import traceback
+    tb = traceback.format_exc()
     logging.getLogger(__name__).error(
         "Unhandled exception on %s %s\n%s",
         request.method,
         request.url.path,
-        traceback.format_exc(),
+        tb,
     )
-    return _error_response(500, "An unexpected error occurred.")
+    response = JSONResponse(
+        status_code=500,
+        content={"error": True, "message": str(exc), "detail": tb},
+    )
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 # ── Health check ───────────────────────────────────────────────────────────────

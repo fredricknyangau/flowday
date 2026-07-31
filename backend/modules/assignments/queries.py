@@ -13,9 +13,10 @@ from modules.assignments.schemas import (
 
 _ASSIGNMENT_COLS = """
     a.id,
-    a.client_id,
-    c.name        AS client_name,
-    c.priority    AS client_priority,
+    a.context_id,
+    c.name        AS context_name,
+    c.priority    AS context_priority,
+    c.context_type AS context_type,
     a.assignment_type,
     a.course,
     a.word_count,
@@ -24,9 +25,11 @@ _ASSIGNMENT_COLS = """
     a.status,
     a.payment_kes,
     a.notes,
+    a.reminder_minutes_before,
     a.is_active,
     a.received_at,
     a.submitted_at,
+    a.paid_at,
     a.created_at,
     a.updated_at
 """
@@ -40,7 +43,7 @@ async def get_all_assignments(
         f"""
         SELECT {_ASSIGNMENT_COLS}
         FROM   assignments a
-        LEFT JOIN clients c ON c.id = a.client_id
+        LEFT JOIN contexts c ON c.id = a.context_id
         WHERE  a.tenant_id = $1
           AND  a.is_active = TRUE
         ORDER  BY a.deadline ASC
@@ -55,27 +58,52 @@ async def get_today_assignments(
     day_end: datetime,
     tenant_id: UUID,
 ) -> list[asyncpg.Record]:
-    """
-    Returns active assignments whose deadline falls within [day_start, day_end),
-    excluding statuses 'Submitted' and 'Cancelled', ordered by deadline ASC.
-    day_start / day_end are UTC-aware datetimes computed by the router from the
-    Africa/Nairobi 08:00 boundary.
-    """
     return await conn.fetch(
         f"""
         SELECT {_ASSIGNMENT_COLS}
         FROM   assignments a
-        LEFT JOIN clients c ON c.id = a.client_id
+        LEFT JOIN contexts c ON c.id = a.context_id
         WHERE  a.tenant_id = $1
           AND  a.is_active = TRUE
-          AND  a.deadline >= $2
-          AND  a.deadline <  $3
-          AND  a.status NOT IN ('Submitted', 'Cancelled')
-        ORDER  BY a.deadline ASC
+          AND  a.status != 'Cancelled'
+          AND  (
+                  (a.status != 'Submitted' AND ((a.deadline >= $2 AND a.deadline < $3) OR a.status = 'Overdue'))
+               OR (a.status = 'Submitted' AND a.submitted_at >= $2 AND a.submitted_at < $3)
+               OR (a.status = 'Submitted' AND a.payment_kes IS NOT NULL AND a.paid_at IS NULL)
+               )
+        ORDER  BY
+          -- Overdue assignments surface first, followed by active pending, then submitted
+          CASE WHEN a.status = 'Overdue' THEN 0 WHEN a.status = 'Submitted' THEN 2 ELSE 1 END,
+          a.deadline ASC
         """,
         tenant_id,
         day_start,
         day_end,
+    )
+
+
+async def get_monthly_assignments(
+    conn: asyncpg.Connection,
+    month_start: datetime,
+    month_end: datetime,
+    tenant_id: UUID,
+) -> list[asyncpg.Record]:
+    return await conn.fetch(
+        f"""
+        SELECT {_ASSIGNMENT_COLS}
+        FROM   assignments a
+        LEFT JOIN contexts c ON c.id = a.context_id
+        WHERE  a.tenant_id = $1
+          AND  a.is_active = TRUE
+          AND  (
+                  (a.deadline >= $2 AND a.deadline < $3)
+                  OR (a.submitted_at >= $2 AND a.submitted_at < $3)
+               )
+        ORDER  BY a.deadline ASC
+        """,
+        tenant_id,
+        month_start,
+        month_end,
     )
 
 
@@ -84,23 +112,22 @@ async def create_assignment(
     data: CreateAssignmentRequest,
     tenant_id: UUID,
 ) -> asyncpg.Record:
-    # Compute estimated_hours here — not on the schema — so there is no
-    # dependency on Pydantic dataclass-style Field kwargs (init=False).
     estimated_hours = (
         _ceil_to_half(data.word_count / 300) if data.word_count is not None else None
     )
     return await conn.fetchrow(
         f"""
         INSERT INTO assignments
-            (tenant_id, client_id, assignment_type, course, word_count,
-             estimated_hours, deadline, payment_kes, notes)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id, client_id, assignment_type, course, word_count,
+            (tenant_id, context_id, assignment_type, course, word_count,
+             estimated_hours, deadline, payment_kes, notes, reminder_minutes_before)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id, context_id, assignment_type, course, word_count,
                   estimated_hours, deadline, status, payment_kes, notes,
-                  is_active, received_at, submitted_at, created_at, updated_at
+                  reminder_minutes_before, is_active, received_at, submitted_at,
+                  created_at, updated_at
         """,
         tenant_id,
-        data.client_id,
+        data.context_id,
         data.assignment_type,
         data.course,
         data.word_count,
@@ -108,6 +135,7 @@ async def create_assignment(
         data.deadline,
         data.payment_kes,
         data.notes,
+        data.reminder_minutes_before,
     )
 
 
@@ -117,19 +145,7 @@ async def update_assignment_status(
     new_status: AssignmentStatus,
     tenant_id: UUID,
 ) -> asyncpg.Record | None:
-    """
-    Updates assignment status, sets submitted_at when status becomes 'Submitted',
-    writes a row to assignment_status_log, and returns the updated assignment
-    with client_name. Returns None if the assignment does not exist, is inactive,
-    OR belongs to a different tenant — all three cases are deliberately collapsed
-    into a single None return so the caller returns 404 without distinguishing
-    between "doesn't exist" and "belongs to someone else."
-    All operations run inside a single transaction.
-    """
     async with conn.transaction():
-        # Fetch current status — confirms row exists, is active, AND belongs to
-        # this tenant. A single query, a single condition: no timing difference
-        # between "not found" and "wrong tenant" that could leak information.
         current = await conn.fetchrow(
             """
             SELECT status
@@ -146,10 +162,6 @@ async def update_assignment_status(
 
         previous_status: str = current["status"]
 
-        # Update the assignment row.
-        # Cast $1 to ::varchar explicitly to avoid PostgreSQL's
-        # "inconsistent types deduced for parameter $1" when the same
-        # placeholder appears in both SET (character varying) and CASE WHEN (text).
         await conn.execute(
             """
             UPDATE assignments
@@ -163,9 +175,6 @@ async def update_assignment_status(
             assignment_id,
         )
 
-        # Write the status-change audit log.
-        # tenant_id is denormalized here (not derived via JOIN) so RLS on this
-        # table can evaluate it directly without a subquery.
         await conn.execute(
             """
             INSERT INTO assignment_status_log
@@ -178,14 +187,11 @@ async def update_assignment_status(
             new_status,
         )
 
-    # Re-fetch with client_name JOIN so the response shape is consistent.
-    # tenant_id guard here is belt-and-suspenders — the row was already
-    # confirmed as belonging to this tenant above.
     return await conn.fetchrow(
         f"""
         SELECT {_ASSIGNMENT_COLS}
         FROM   assignments a
-        LEFT JOIN clients c ON c.id = a.client_id
+        LEFT JOIN contexts c ON c.id = a.context_id
         WHERE  a.id = $1
           AND  a.tenant_id = $2
         """,
@@ -200,9 +206,6 @@ async def update_assignment(
     tenant_id: UUID,
     body: UpdateAssignmentRequest,
 ) -> asyncpg.Record | None:
-    """
-    Updates assignment fields and recalculates estimated_hours based on word_count.
-    """
     estimated_hours: Decimal | None = None
     if body.word_count is not None:
         estimated_hours = _ceil_to_half(body.word_count / 500.0)
@@ -210,7 +213,7 @@ async def update_assignment(
     updated = await conn.fetchrow(
         f"""
         UPDATE assignments
-        SET    client_id       = $1,
+        SET    context_id      = $1,
                assignment_type = $2,
                course          = $3,
                word_count      = $4,
@@ -218,11 +221,12 @@ async def update_assignment(
                deadline        = $6,
                payment_kes     = $7,
                notes           = $8,
+               reminder_minutes_before = $9,
                updated_at      = NOW()
-        WHERE  id = $9 AND tenant_id = $10
+        WHERE  id = $10 AND tenant_id = $11
         RETURNING id
         """,
-        body.client_id,
+        body.context_id,
         body.assignment_type,
         body.course,
         body.word_count,
@@ -230,6 +234,7 @@ async def update_assignment(
         body.deadline,
         body.payment_kes,
         body.notes,
+        body.reminder_minutes_before,
         assignment_id,
         tenant_id,
     )
@@ -241,7 +246,7 @@ async def update_assignment(
         f"""
         SELECT {_ASSIGNMENT_COLS}
         FROM   assignments a
-        LEFT JOIN clients c ON c.id = a.client_id
+        LEFT JOIN contexts c ON c.id = a.context_id
         WHERE  a.id = $1 AND a.tenant_id = $2
         """,
         assignment_id,
@@ -321,3 +326,56 @@ async def delete_subtask(
     return res.endswith("1")
 
 
+# ── PAYMENT MARKING ──────────────────────────────────────────────────────────
+
+async def mark_assignment_paid(
+    conn: asyncpg.Connection,
+    assignment_id: UUID,
+    tenant_id: UUID,
+    paid_at: datetime,
+) -> asyncpg.Record | None:
+    """
+    Stamp paid_at on an assignment, confirming money has arrived.
+
+    Rules:
+    - Returns None → 404 if the assignment doesn't exist or belongs to another tenant.
+    - Raises ValueError → 422 if payment_kes is NULL (marking paid is meaningless without an amount).
+    - Does NOT require status = 'Submitted'; the caller may mark any non-cancelled
+      assignment paid if the client pays in advance (edge case, but valid).
+    - Does NOT touch submitted_at — that timestamp tracks delivery, not payment.
+    """
+    row = await conn.fetchrow(
+        """
+        SELECT payment_kes
+        FROM   assignments
+        WHERE  id = $1 AND tenant_id = $2 AND is_active = TRUE
+        """,
+        assignment_id,
+        tenant_id,
+    )
+    if row is None:
+        return None
+    if row["payment_kes"] is None:
+        raise ValueError("Cannot mark paid: this assignment has no payment amount set (payment_kes is null).")
+
+    await conn.execute(
+        """
+        UPDATE assignments
+        SET    paid_at    = $1,
+               updated_at = NOW()
+        WHERE  id = $2
+        """,
+        paid_at,
+        assignment_id,
+    )
+
+    return await conn.fetchrow(
+        f"""
+        SELECT {_ASSIGNMENT_COLS}
+        FROM   assignments a
+        LEFT JOIN contexts c ON c.id = a.context_id
+        WHERE  a.id = $1 AND a.tenant_id = $2
+        """,
+        assignment_id,
+        tenant_id,
+    )

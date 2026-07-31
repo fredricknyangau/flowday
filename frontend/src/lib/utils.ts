@@ -48,6 +48,12 @@ const PRIORITY_SCORE: Record<string, number> = {
 
 export function sortAssignmentsByUrgency(assignments: Assignment[]): Assignment[] {
   return [...assignments].sort((a, b) => {
+    // Overdue (by status) always sorts above everything else in Today
+    const aOverdue = a.status === 'Overdue' ? 0 : 1
+    const bOverdue = b.status === 'Overdue' ? 0 : 1
+    if (aOverdue !== bOverdue) return aOverdue - bOverdue
+
+    // Within the same overdue-tier, sort by deadline then context priority
     const diff = new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
     if (diff !== 0) return diff
     const scoreA = a.client_priority ? PRIORITY_SCORE[a.client_priority] || 2 : 2

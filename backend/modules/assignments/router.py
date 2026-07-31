@@ -11,8 +11,10 @@ from modules.assignments.queries import (
     create_subtask,
     delete_subtask,
     get_all_assignments,
+    get_monthly_assignments,
     get_subtasks,
     get_today_assignments,
+    mark_assignment_paid,
     toggle_subtask,
     update_assignment,
     update_assignment_status,
@@ -21,6 +23,7 @@ from modules.assignments.schemas import (
     AssignmentResponse,
     CreateAssignmentRequest,
     CreateSubtaskRequest,
+    MarkAssignmentPaidRequest,
     SubtaskResponse,
     ToggleSubtaskRequest,
     UpdateAssignmentRequest,
@@ -29,43 +32,34 @@ from modules.assignments.schemas import (
 
 router = APIRouter()
 
-_NAIROBI = ZoneInfo("Africa/Nairobi")
-_WORK_DAY_START_HOUR = 8  # 08:00 local = start of a new work day
-
-
-def _today_utc_window() -> tuple[datetime, datetime]:
+async def _today_utc_window(
+    conn: asyncpg.Connection,
+    tenant_id: UUID,
+) -> tuple[datetime, datetime]:
     """
-    Return (day_start_utc, day_end_utc) for the *current* Nairobi work day.
-
-    A work day runs from 08:00 Nairobi to 07:59 the *following* calendar day,
-    meaning any deadline from 08:00 today up to (but not including) 08:00
-    tomorrow belongs to today's plan.
-
-    Examples (Nairobi local time → UTC window):
-      - Current time  09:30 Thu  →  window  Thu 08:00–Fri 08:00 EAT
-                                   =  Thu 05:00–Fri 05:00 UTC
-      - Current time  02:00 Fri  →  work day is still *Thursday*
-                                   →  window  Thu 08:00–Fri 08:00 EAT
+    Return (day_start_utc, day_end_utc) for the tenant's current work day.
+    Determined dynamically from the tenant's stored timezone and boundary hour.
     """
-    now_nairobi = datetime.now(_NAIROBI)
+    from modules.auth.queries import get_tenant_settings
 
-    # If we are before 08:00 local, we are still on the *previous* work day
-    if now_nairobi.hour < _WORK_DAY_START_HOUR:
-        work_day_date = now_nairobi.date() - timedelta(days=1)
+    tz, boundary_hour, _ = await get_tenant_settings(conn, tenant_id)
+    now_local = datetime.now(tz)
+
+    if now_local.hour < boundary_hour:
+        work_day_date = now_local.date() - timedelta(days=1)
     else:
-        work_day_date = now_nairobi.date()
+        work_day_date = now_local.date()
 
-    # Build 08:00 local on the work-day date, then convert to UTC
     day_start_local = datetime(
         work_day_date.year,
         work_day_date.month,
         work_day_date.day,
-        _WORK_DAY_START_HOUR,
+        boundary_hour,
         0,
         0,
-        tzinfo=_NAIROBI,
+        tzinfo=tz,
     )
-    day_end_local = day_start_local + timedelta(days=1)  # 08:00 next calendar day
+    day_end_local = day_start_local + timedelta(days=1)
 
     return (
         day_start_local.astimezone(timezone.utc),
@@ -87,8 +81,44 @@ async def today_assignments(
     tenant_id: UUID = Depends(get_tenant_id),
     conn: asyncpg.Connection = Depends(get_connection),
 ):
-    day_start, day_end = _today_utc_window()
+    day_start, day_end = await _today_utc_window(conn, tenant_id)
     rows = await get_today_assignments(conn, day_start, day_end, tenant_id)
+    return [AssignmentResponse(**dict(row)) for row in rows]
+
+
+@router.get("/monthly", response_model=list[AssignmentResponse])
+async def monthly_assignments(
+    month: str | None = None,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    from modules.auth.queries import get_tenant_settings
+    tz, _, _ = await get_tenant_settings(conn, tenant_id)
+
+    if month:
+        try:
+            year_str, month_str = month.split("-")
+            year = int(year_str)
+            m = int(month_str)
+            start_dt = datetime(year, m, 1, 0, 0, 0, tzinfo=tz)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid month format. Expected YYYY-MM",
+            )
+    else:
+        now_local = datetime.now(tz)
+        start_dt = datetime(now_local.year, now_local.month, 1, 0, 0, 0, tzinfo=tz)
+
+    if start_dt.month == 12:
+        end_dt = datetime(start_dt.year + 1, 1, 1, 0, 0, 0, tzinfo=tz)
+    else:
+        end_dt = datetime(start_dt.year, start_dt.month + 1, 1, 0, 0, 0, tzinfo=tz)
+
+    start_utc = start_dt.astimezone(timezone.utc)
+    end_utc = end_dt.astimezone(timezone.utc)
+
+    rows = await get_monthly_assignments(conn, start_utc, end_utc, tenant_id)
     return [AssignmentResponse(**dict(row)) for row in rows]
 
 
@@ -99,16 +129,14 @@ async def create_new_assignment(
     conn: asyncpg.Connection = Depends(get_connection),
 ):
     row = await create_assignment(conn, body, tenant_id)
-    # create_assignment RETURNING does not include client_name; fetch it with JOIN.
-    # tenant_id guard on the re-fetch is belt-and-suspenders.
     full_row = await conn.fetchrow(
         """
-        SELECT a.id, a.client_id, c.name AS client_name, c.priority AS client_priority,
+        SELECT a.id, a.context_id, c.name AS context_name, c.priority AS context_priority, c.context_type AS context_type,
                a.assignment_type, a.course, a.word_count, a.estimated_hours,
-               a.deadline, a.status, a.payment_kes, a.notes, a.is_active,
-               a.received_at, a.submitted_at, a.created_at, a.updated_at
+               a.deadline, a.status, a.payment_kes, a.notes, a.reminder_minutes_before,
+               a.is_active, a.received_at, a.submitted_at, a.paid_at, a.created_at, a.updated_at
         FROM   assignments a
-        LEFT JOIN clients c ON c.id = a.client_id
+        LEFT JOIN contexts c ON c.id = a.context_id
         WHERE  a.id = $1
           AND  a.tenant_id = $2
         """,
@@ -143,7 +171,33 @@ async def patch_assignment_status(
 ):
     row = await update_assignment_status(conn, assignment_id, body.status, tenant_id)
     if row is None:
-        # "not found" and "wrong tenant" are intentionally indistinguishable.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assignment {assignment_id} not found or already deleted.",
+        )
+    return AssignmentResponse(**dict(row))
+
+
+@router.patch("/{assignment_id}/payment", response_model=AssignmentResponse)
+async def patch_assignment_payment(
+    assignment_id: UUID,
+    body: MarkAssignmentPaidRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    """
+    Mark an assignment as paid.
+    - `paid_at` is optional: defaults to now() if omitted.
+    - Returns 422 if the assignment has no payment_kes set.
+    - Returns 404 if the assignment doesn't exist or belongs to another tenant.
+    """
+    from datetime import timezone
+    effective_paid_at = body.paid_at or datetime.now(timezone.utc)
+    try:
+        row = await mark_assignment_paid(conn, assignment_id, tenant_id, effective_paid_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Assignment {assignment_id} not found or already deleted.",
@@ -198,5 +252,3 @@ async def remove_subtask(
     deleted = await delete_subtask(conn, subtask_id, tenant_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Subtask not found.")
-
-

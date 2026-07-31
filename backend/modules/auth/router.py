@@ -1,3 +1,4 @@
+import zoneinfo
 from uuid import UUID
 
 import asyncpg
@@ -6,13 +7,17 @@ from dependencies import get_connection, get_tenant_id
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from modules.auth.queries import (
     create_workspace_and_user,
+    get_tenant_settings_record,
     get_user_by_email,
     get_user_by_id,
+    update_tenant_settings,
 )
 from modules.auth.schemas import (
     AuthResponse,
     LoginRequest,
     RegisterRequest,
+    TenantSettingsResponse,
+    UpdateTenantSettingsRequest,
     UserResponse,
 )
 from modules.auth.security import (
@@ -115,3 +120,51 @@ async def get_current_user_info(
         raise HTTPException(status_code=404, detail="User not found.")
 
     return UserResponse(**dict(row))
+
+
+@router.get("/settings", response_model=TenantSettingsResponse)
+async def get_settings(
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    row = await get_tenant_settings_record(conn, tenant_id)
+    if not row:
+        return TenantSettingsResponse(timezone="UTC", day_boundary_hour=0, daily_capacity_hours=8.0, reminder_minutes_before=120)
+    return TenantSettingsResponse(
+        timezone=row["timezone"] or "UTC",
+        day_boundary_hour=row["day_boundary_hour"] if row["day_boundary_hour"] is not None else 0,
+        daily_capacity_hours=float(row["daily_capacity_hours"]) if row["daily_capacity_hours"] is not None else 8.0,
+        reminder_minutes_before=row["reminder_minutes_before"] if row["reminder_minutes_before"] is not None else 120,
+    )
+
+
+@router.patch("/settings", response_model=TenantSettingsResponse)
+async def update_settings(
+    body: UpdateTenantSettingsRequest,
+    tenant_id: UUID = Depends(get_tenant_id),
+    conn: asyncpg.Connection = Depends(get_connection),
+):
+    if body.timezone is not None:
+        valid_tzs = zoneinfo.available_timezones()
+        if body.timezone not in valid_tzs:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid IANA timezone '{body.timezone}'. Must be a valid timezone name (e.g. 'Africa/Nairobi', 'America/New_York', 'UTC').",
+            )
+
+    row = await update_tenant_settings(
+        conn,
+        tenant_id,
+        timezone=body.timezone,
+        day_boundary_hour=body.day_boundary_hour,
+        daily_capacity_hours=body.daily_capacity_hours,
+        reminder_minutes_before=body.reminder_minutes_before,
+    )
+
+    return TenantSettingsResponse(
+        timezone=row["timezone"] or "UTC",
+        day_boundary_hour=row["day_boundary_hour"] if row["day_boundary_hour"] is not None else 0,
+        daily_capacity_hours=float(row["daily_capacity_hours"]) if row["daily_capacity_hours"] is not None else 8.0,
+        reminder_minutes_before=row["reminder_minutes_before"] if row["reminder_minutes_before"] is not None else 120,
+    )
+

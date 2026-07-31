@@ -1,16 +1,14 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
-from pywebpush import webpush, WebPushException
+from datetime import datetime, timezone
 
 import asyncpg
 from config import settings
 from database import get_pool
 from modules.assignments.tasks import mark_overdue_assignments
+from pywebpush import WebPushException, webpush
 
-_NAIROBI = ZoneInfo("Africa/Nairobi")
 logger = logging.getLogger(__name__)
 
 
@@ -18,48 +16,46 @@ async def send_push_notifications() -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         now = datetime.now(timezone.utc)
-        two_hours_from_now = now + timedelta(hours=2)
 
-        # Fetch due assignments with their tenant_id so we can match them to
-        # the correct tenant's subscriptions. Without this, Tenant A's users
-        # would receive push notifications about Tenant B's deadlines.
+        # Filter per-row using the effective reminder window:
+        #   COALESCE(assignment-level override, tenant workspace default)
+        # This replaces the old global "two_hours_from_now" constant so each
+        # assignment uses its own configured lead time.
         rows = await conn.fetch(
             """
-            SELECT a.id, a.tenant_id, a.deadline, c.name AS client_name, a.assignment_type
+            SELECT a.id, a.tenant_id, a.deadline, c.name AS context_name, a.assignment_type
             FROM assignments a
-            JOIN clients c ON a.client_id = c.id
+            JOIN contexts c ON a.context_id = c.id
+            JOIN tenants  t ON a.tenant_id  = t.id
             WHERE a.status NOT IN ('Submitted', 'Cancelled')
               AND a.is_active = TRUE
               AND a.push_notified = FALSE
-              AND a.deadline <= $1
-              AND a.deadline >= $2
+              AND a.deadline >= $1
+              AND a.deadline <= $1 + (COALESCE(a.reminder_minutes_before, t.reminder_minutes_before) * INTERVAL '1 minute')
             """,
-            two_hours_from_now,
-            now - timedelta(hours=1),  # don't notify for very old ones
+            now,
         )
 
         if not rows:
             return
 
         for row in rows:
-            assignment_id   = row["id"]
+            assignment_id = row["id"]
             assignment_tenant = row["tenant_id"]
-            client_name     = row["client_name"]
+            context_name = row["context_name"]
             assignment_type = row["assignment_type"]
 
-            # Convert deadline to local time for friendly display
-            deadline_local = row["deadline"].astimezone(_NAIROBI)
+            from modules.auth.queries import get_tenant_settings
+            tz, _, _ = await get_tenant_settings(conn, assignment_tenant)
+            deadline_local = row["deadline"].astimezone(tz)
             time_str = deadline_local.strftime("%I:%M %p")
 
             payload = json.dumps({
                 "title": "Assignment Due Soon",
-                "body": f"{client_name} - {assignment_type} is due at {time_str}.",
+                "body": f"{context_name} - {assignment_type} is due at {time_str}.",
                 "url": "/",
             })
 
-            # Only deliver to subscriptions belonging to the SAME tenant as the
-            # assignment. This is the core tenant isolation fix for push:
-            # previously all subscriptions received all notifications globally.
             subs = await conn.fetch(
                 """
                 SELECT id, endpoint, p256dh, auth
@@ -70,8 +66,6 @@ async def send_push_notifications() -> None:
             )
 
             if not subs:
-                # No subscriptions for this tenant — skip, but still mark notified
-                # so we don't re-attempt on the next iteration.
                 await conn.execute(
                     "UPDATE assignments SET push_notified = TRUE WHERE id = $1",
                     assignment_id,
@@ -83,12 +77,13 @@ async def send_push_notifications() -> None:
                     "endpoint": sub["endpoint"],
                     "keys": {
                         "p256dh": sub["p256dh"],
-                        "auth":   sub["auth"],
+                        "auth": sub["auth"],
                     },
                 }
 
                 try:
-                    webpush(
+                    await asyncio.to_thread(
+                        webpush,
                         subscription_info=sub_info,
                         data=payload,
                         vapid_private_key=settings.vapid_private_key,
@@ -97,13 +92,13 @@ async def send_push_notifications() -> None:
                 except WebPushException as ex:
                     logger.warning("WebPush error for tenant %s: %s", assignment_tenant, repr(ex))
                     if ex.response and ex.response.status_code in [404, 410]:
-                        # Subscription expired or invalid — remove it
                         await conn.execute(
                             "DELETE FROM push_subscriptions WHERE id = $1",
                             sub["id"],
                         )
+                except Exception as ex:
+                    logger.warning("Unexpected push notification error: %s", repr(ex))
 
-            # Mark assignment as notified after attempting all subs for this tenant
             await conn.execute(
                 "UPDATE assignments SET push_notified = TRUE WHERE id = $1",
                 assignment_id,
@@ -121,4 +116,4 @@ async def run_push_notification_worker() -> None:
             await send_push_notifications()
         except Exception as e:
             logger.error("Error in push notification worker: %s", e, exc_info=True)
-        await asyncio.sleep(15 * 60)  # 15-minute cadence
+        await asyncio.sleep(15 * 60)

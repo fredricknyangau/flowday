@@ -47,7 +47,7 @@ export function SchedulePanel() {
     return (
       <div className="space-y-2 animate-pulse">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-10 bg-gray-100 rounded-lg" />
+          <div key={`skel-schedule-${i}`} className="h-10 bg-gray-100 dark:bg-gray-800 rounded-lg" />
         ))}
       </div>
     )

@@ -1,17 +1,16 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
-import { Clock, AlertCircle, Sparkles, CheckCircle2, Search, X, CheckSquare, Play } from 'lucide-react'
+import { Clock, AlertCircle, Sparkles, CheckCircle2, Search, X, CheckSquare, Play, Banknote } from 'lucide-react'
 import { fetchTodayAssignments, updateAssignmentStatus } from '@/api/assignments'
 import { AssignmentCard } from '@/components/AssignmentCard'
 import { SchedulePanel } from '@/components/SchedulePanel'
 import { sortAssignmentsByUrgency, getDayBoundary, getUrgencyLevel, cn } from '@/lib/utils'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { NotificationBanner } from '@/components/NotificationBanner'
-import { BurnoutWarning } from '@/components/BurnoutWarning'
+import { AlertsStrip } from '@/components/AlertsStrip'
 
 export function Today() {
   const queryClient = useQueryClient()
-  const [filter, setFilter] = useState<'all' | 'critical' | 'in_progress'>('all')
+  const [filter, setFilter] = useState<'all' | 'critical' | 'in_progress' | 'unpaid'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
@@ -74,15 +73,18 @@ export function Today() {
     0
   )
 
-  const filteredPending = pending.filter((a) => {
+  const targetPool = filter === 'unpaid' ? sorted : pending
+
+  const filteredPending = targetPool.filter((a) => {
     // Search query match
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
-      const matchesClient = a.client_name?.toLowerCase().includes(q)
+      const matchesContext = (a.context_name ?? a.client_name)?.toLowerCase().includes(q)
+      const matchesContextType = a.context_type?.toLowerCase().includes(q)
       const matchesCourse = a.course?.toLowerCase().includes(q)
       const matchesType   = a.assignment_type.toLowerCase().includes(q)
       const matchesNotes  = a.notes?.toLowerCase().includes(q)
-      if (!matchesClient && !matchesCourse && !matchesType && !matchesNotes) {
+      if (!matchesContext && !matchesContextType && !matchesCourse && !matchesType && !matchesNotes) {
         return false
       }
     }
@@ -93,6 +95,9 @@ export function Today() {
     }
     if (filter === 'in_progress') {
       return a.status === 'In progress'
+    }
+    if (filter === 'unpaid') {
+      return a.status === 'Submitted' && !!a.payment_kes && !a.paid_at
     }
     return true
   })
@@ -127,8 +132,7 @@ export function Today() {
         )}
       </div>
       
-      <BurnoutWarning />
-      <NotificationBanner />
+      <AlertsStrip />
 
       <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:px-6 lg:pt-6">
         <section>
@@ -175,6 +179,18 @@ export function Today() {
                   >
                     In Progress
                   </button>
+                  <button
+                    onClick={() => setFilter('unpaid')}
+                    className={cn(
+                      'px-2 py-0.5 rounded-md transition-colors font-medium flex items-center gap-1 cursor-pointer',
+                      filter === 'unpaid'
+                        ? 'bg-white dark:bg-gray-700 text-amber-700 dark:text-amber-400 shadow-xs'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    )}
+                  >
+                    <Banknote size={10} />
+                    Unpaid
+                  </button>
                 </div>
               )}
             </div>
@@ -185,7 +201,7 @@ export function Today() {
                 <Search size={14} className="absolute left-3 top-2.5 text-gray-400 dark:text-gray-500" />
                 <input
                   type="text"
-                  placeholder="Search by client, course, assignment type..."
+                  placeholder="Search by context, course, assignment type..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-8 py-1.5 text-xs border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
@@ -203,10 +219,9 @@ export function Today() {
           </div>
 
           <div className="px-4 space-y-3 lg:px-0">
-            {/* Loading skeleton */}
             {isLoading &&
               [...Array(3)].map((_, i) => (
-                <div key={i} className="h-24 bg-gray-100 dark:bg-gray-850 rounded-lg animate-pulse" />
+                <div key={`skel-today-${i}`} className="h-24 bg-gray-100 dark:bg-gray-850 rounded-lg animate-pulse" />
               ))}
 
             {/* Error state */}

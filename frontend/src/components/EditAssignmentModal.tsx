@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, Save, AlertCircle } from 'lucide-react'
 import { updateAssignment } from '@/api/assignments'
-import { fetchClients } from '@/api/clients'
+import { fetchContexts } from '@/api/contexts'
 import { ASSIGNMENT_TYPES } from '@/lib/constants'
 import type { Assignment, AssignmentType } from '@/types'
 
@@ -14,7 +14,7 @@ interface Props {
 
 export function EditAssignmentModal({ assignment, isOpen, onClose }: Props) {
   const queryClient = useQueryClient()
-  const [clientId, setClientId] = useState(assignment.client_id)
+  const [contextId, setContextId] = useState(assignment.context_id || assignment.client_id || '')
   const [assignmentType, setAssignmentType] = useState<AssignmentType>(assignment.assignment_type)
   const [course, setCourse] = useState(assignment.course ?? '')
   const [wordCount, setWordCount] = useState<string>(assignment.word_count?.toString() ?? '')
@@ -23,24 +23,20 @@ export function EditAssignmentModal({ assignment, isOpen, onClose }: Props) {
   )
   const [paymentKes, setPaymentKes] = useState<string>(assignment.payment_kes?.toString() ?? '')
   const [notes, setNotes] = useState(assignment.notes ?? '')
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState<number | null>(
+    assignment.reminder_minutes_before ?? null
+  )
   const [formError, setFormError] = useState<string | null>(null)
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ['clients'],
-    queryFn: fetchClients,
+  const { data: contexts = [] } = useQuery({
+    queryKey: ['contexts'],
+    queryFn: fetchContexts,
   })
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () =>
-      updateAssignment(assignment.id, {
-        client_id: clientId,
-        assignment_type: assignmentType,
-        course: course.trim() || undefined,
-        word_count: wordCount ? parseInt(wordCount, 10) : undefined,
-        deadline: new Date(deadline).toISOString(),
-        payment_kes: paymentKes ? parseFloat(paymentKes) : undefined,
-        notes: notes.trim() || undefined,
-      }),
+    mutationKey: ['updateAssignment'],
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof updateAssignment>[1] }) =>
+      updateAssignment(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] })
       onClose()
@@ -55,15 +51,27 @@ export function EditAssignmentModal({ assignment, isOpen, onClose }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
-    if (!clientId) {
-      setFormError('Please select a client')
+    if (!contextId) {
+      setFormError('Please select a work context')
       return
     }
     if (!deadline) {
       setFormError('Please enter a deadline')
       return
     }
-    mutate()
+    mutate({
+      id: assignment.id,
+      body: {
+        context_id: contextId,
+        assignment_type: assignmentType,
+        course: course.trim() || undefined,
+        word_count: wordCount ? parseInt(wordCount, 10) : undefined,
+        deadline: new Date(deadline).toISOString(),
+        payment_kes: paymentKes ? parseFloat(paymentKes) : undefined,
+        notes: notes.trim() || undefined,
+        reminder_minutes_before: reminderMinutesBefore,
+      },
+    })
   }
 
   return (
@@ -87,19 +95,19 @@ export function EditAssignmentModal({ assignment, isOpen, onClose }: Props) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Client select */}
+          {/* Context select */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-              Client *
+              Work Context *
             </label>
             <select
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              value={contextId}
+              onChange={(e) => setContextId(e.target.value)}
               className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             >
-              {clients.map((c) => (
+              {contexts.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.priority} Priority)
+                  {c.name} ({c.context_type || 'Client'})
                 </option>
               ))}
             </select>
@@ -192,6 +200,44 @@ export function EditAssignmentModal({ assignment, isOpen, onClose }: Props) {
               placeholder="Requirements, portal link, special instructions..."
               className="w-full text-xs border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
+          </div>
+
+          {/* Reminder override */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              Reminder Lead Time
+            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="number"
+                placeholder="Workspace default"
+                min={5}
+                max={1440}
+                value={reminderMinutesBefore ?? ''}
+                onChange={(e) =>
+                  setReminderMinutesBefore(e.target.value ? Math.max(5, Math.min(1440, Number(e.target.value))) : null)
+                }
+                className="w-28 text-xs border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              />
+              <span className="text-xs text-gray-400 dark:text-gray-500">min</span>
+              <div className="flex items-center gap-1">
+                {[30, 60, 120, 240].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setReminderMinutesBefore(reminderMinutesBefore === preset ? null : preset)}
+                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                      reminderMinutesBefore === preset
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-emerald-400 hover:text-emerald-600'
+                    }`}
+                  >
+                    {preset < 60 ? `${preset}m` : `${preset / 60}h`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">Leave blank to use workspace default.</p>
           </div>
 
           {/* Actions */}

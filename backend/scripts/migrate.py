@@ -17,20 +17,23 @@ load_dotenv()
 MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations"
 
 
-async def run_migrations():
-    try:
-        from config import settings
-        dsn = settings.database_url
-    except Exception:
-        dsn = os.getenv("DATABASE_URL")
+async def run_migrations(conn: asyncpg.Connection | None = None):
+    close_when_done = False
+    if conn is None:
+        try:
+            from config import settings
+            dsn = settings.database_url
+        except Exception:
+            dsn = os.getenv("DATABASE_URL")
 
-    if not dsn:
-        raise ValueError("DATABASE_URL not set in environment or config")
+        if not dsn:
+            raise ValueError("DATABASE_URL not set in environment or config")
 
-    if dsn.startswith("postgres://"):
-        dsn = dsn.replace("postgres://", "postgresql://", 1)
+        if dsn.startswith("postgres://"):
+            dsn = dsn.replace("postgres://", "postgresql://", 1)
 
-    conn = await asyncpg.connect(dsn=dsn)
+        conn = await asyncpg.connect(dsn=dsn)
+        close_when_done = True
 
     try:
         # Create tracking table if it does not exist
@@ -77,7 +80,8 @@ async def run_migrations():
         print("\nAll migrations complete.")
 
     finally:
-        await conn.close()
+        if close_when_done and conn:
+            await conn.close()
 
 
 if __name__ == "__main__":

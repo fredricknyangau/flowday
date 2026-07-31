@@ -4,8 +4,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel, Field, model_validator
 
 AssignmentType = Literal[
     "Discussion post",
@@ -35,9 +34,16 @@ def _ceil_to_half(value: float) -> Decimal:
 
 class AssignmentResponse(BaseModel):
     id: UUID
-    client_id: UUID
+    context_id: UUID
+    context_name: str | None = None
+    context_priority: str | None = None
+    context_type: str | None = None
+
+    # Deprecated alias fields for backward compatibility during rollout
+    client_id: UUID | None = None
     client_name: str | None = None
     client_priority: str | None = None
+
     assignment_type: AssignmentType
     course: str | None
     word_count: int | None
@@ -46,41 +52,79 @@ class AssignmentResponse(BaseModel):
     status: AssignmentStatus
     payment_kes: Decimal | None
     notes: str | None
+    reminder_minutes_before: int | None = None
     is_active: bool
     received_at: datetime
     submitted_at: datetime | None
+    paid_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def populate_alias_fields(self):
+        if self.client_id is None:
+            self.client_id = self.context_id
+        if self.client_name is None:
+            self.client_name = self.context_name
+        if self.client_priority is None:
+            self.client_priority = self.context_priority
+        return self
 
     model_config = {"from_attributes": True}
 
 
 class CreateAssignmentRequest(BaseModel):
-    client_id: UUID
+    context_id: UUID | None = None
+    client_id: UUID | None = None
     assignment_type: AssignmentType
     course: str | None = Field(default=None, max_length=150)
     word_count: int | None = Field(default=None, gt=0)
     deadline: datetime
     payment_kes: Decimal | None = Field(default=None, ge=0)
     notes: str | None = None
+    reminder_minutes_before: int | None = Field(default=None, ge=5, le=1440)
 
-    # estimated_hours is NOT accepted from the caller — it is derived from
-    # word_count in create_assignment() (queries.py) via _ceil_to_half.
-    # It is intentionally absent here so Pydantic never touches it.
+    @model_validator(mode="after")
+    def validate_context_or_client(self):
+        if self.context_id is None and self.client_id is None:
+            raise ValueError("context_id is required")
+        if self.context_id is None:
+            self.context_id = self.client_id
+        if self.client_id is None:
+            self.client_id = self.context_id
+        return self
 
 
 class UpdateAssignmentStatusRequest(BaseModel):
     status: AssignmentStatus
 
 
+class MarkAssignmentPaidRequest(BaseModel):
+    """Body for PATCH /assignments/{id}/payment."""
+    # Optional ISO-8601 timestamp; if omitted defaults to now() in the router.
+    paid_at: datetime | None = None
+
+
 class UpdateAssignmentRequest(BaseModel):
-    client_id: UUID
+    context_id: UUID | None = None
+    client_id: UUID | None = None
     assignment_type: AssignmentType
     course: str | None = Field(default=None, max_length=150)
     word_count: int | None = Field(default=None, gt=0)
     deadline: datetime
     payment_kes: Decimal | None = Field(default=None, ge=0)
     notes: str | None = None
+    reminder_minutes_before: int | None = Field(default=None, ge=5, le=1440)
+
+    @model_validator(mode="after")
+    def validate_context_or_client(self):
+        if self.context_id is None and self.client_id is None:
+            raise ValueError("context_id is required")
+        if self.context_id is None:
+            self.context_id = self.client_id
+        if self.client_id is None:
+            self.client_id = self.context_id
+        return self
 
 
 class SubtaskResponse(BaseModel):
@@ -99,5 +143,3 @@ class CreateSubtaskRequest(BaseModel):
 
 class ToggleSubtaskRequest(BaseModel):
     is_completed: bool
-
-

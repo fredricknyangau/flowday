@@ -4,6 +4,8 @@ import { API_BASE_URL } from '@/lib/constants'
 import type {
   Assignment,
   CreateAssignmentPayload,
+  UpdateAssignmentPayload,
+  MarkAssignmentPaidPayload,
   Subtask,
   UpdateAssignmentStatusPayload,
 } from '@/types'
@@ -38,6 +40,17 @@ export async function fetchAllAssignments(): Promise<Assignment[]> {
   }
 }
 
+export async function fetchMonthlyAssignments(month?: string): Promise<Assignment[]> {
+  try {
+    const url = month ? `${base}/monthly?month=${month}` : `${base}/monthly`
+    const { data } = await apiClient.get<Assignment[]>(url)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+
 export async function createAssignment(
   payload: CreateAssignmentPayload,
 ): Promise<Assignment> {
@@ -63,10 +76,22 @@ export async function updateAssignmentStatus(
 
 export async function updateAssignment(
   id: string,
-  payload: CreateAssignmentPayload,
+  payload: UpdateAssignmentPayload,
 ): Promise<Assignment> {
   try {
     const { data } = await apiClient.put<Assignment>(`${base}/${id}`, payload)
+    return data
+  } catch (err) {
+    throw new Error(extractMessage(err))
+  }
+}
+
+export async function markAssignmentPaid(
+  id: string,
+  payload: MarkAssignmentPaidPayload = {},
+): Promise<Assignment> {
+  try {
+    const { data } = await apiClient.patch<Assignment>(`${base}/${id}/payment`, payload)
     return data
   } catch (err) {
     throw new Error(extractMessage(err))

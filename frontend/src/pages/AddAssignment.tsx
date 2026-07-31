@@ -1,5 +1,5 @@
 import { createAssignment } from "@/api/assignments";
-import { fetchClients } from "@/api/clients";
+import { fetchContexts } from "@/api/contexts";
 import { EstimatedHoursBadge } from "@/components/EstimatedHoursBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ export function AddAssignment() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [clientId, setClientId] = useState("");
+  const [contextId, setContextId] = useState("");
   const [assignmentType, setAssignmentType] = useState("");
   const [course, setCourse] = useState("");
   const [wordCount, setWordCount] = useState<number | null>(null);
@@ -24,6 +24,7 @@ export function AddAssignment() {
   const [deadlineTime, setDeadlineTime] = useState("23:59");
   const [paymentKes, setPaymentKes] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState<number | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -31,25 +32,27 @@ export function AddAssignment() {
   const [keepOpen, setKeepOpen] = useState(false);
 
   const {
-    data: clients = [],
-    isLoading: clientsLoading,
-    isError: clientsError,
-    refetch: refetchClients,
+    data: contexts = [],
+    isLoading: contextsLoading,
+    isError: contextsError,
+    refetch: refetchContexts,
   } = useQuery({
-    queryKey: ["clients"],
-    queryFn: fetchClients,
+    queryKey: ["contexts"],
+    queryFn: fetchContexts,
   });
 
   const { mutate, isPending } = useMutation({
+    mutationKey: ['createAssignment'],
     mutationFn: createAssignment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
       if (keepOpen) {
-        setSuccessMessage("Assignment saved! Client & deadline kept for next entry.");
+        setSuccessMessage("Assignment saved! Context & deadline kept for next entry.");
         setCourse("");
         setWordCount(null);
         setPaymentKes(null);
         setNotes("");
+        setReminderMinutesBefore(null);
         setTimeout(() => setSuccessMessage(null), 4000);
       } else {
         navigate("/");
@@ -62,7 +65,7 @@ export function AddAssignment() {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!clientId) e.clientId = "Select a client";
+    if (!contextId) e.contextId = "Select a work context";
     if (!assignmentType) e.assignmentType = "Select an assignment type";
     if (!deadlineDate) e.deadlineDate = "Enter a deadline date";
     if (!deadlineTime) e.deadlineTime = "Enter a deadline time";
@@ -78,13 +81,14 @@ export function AddAssignment() {
     setKeepOpen(addAnother);
     const localDeadline = new Date(`${deadlineDate}T${deadlineTime}:00`);
     mutate({
-      client_id: clientId,
+      context_id: contextId,
       assignment_type: assignmentType as any,
       course: course || undefined,
       word_count: wordCount ?? undefined,
       deadline: localDeadline.toISOString(),
       payment_kes: paymentKes ?? undefined,
       notes: notes || undefined,
+      reminder_minutes_before: reminderMinutesBefore,
     });
   }
 
@@ -106,17 +110,17 @@ export function AddAssignment() {
         </div>
       )}
 
-      {/* Client select */}
+      {/* Context select */}
       <div className="space-y-1">
         <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-          Client <span className="text-red-500">*</span>
+          Work Context <span className="text-red-500">*</span>
         </label>
 
-        {clientsError ? (
+        {contextsError ? (
           <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-3 py-2 flex items-center justify-between">
-            <p className="text-xs text-red-600 dark:text-red-400">Could not load clients</p>
+            <p className="text-xs text-red-600 dark:text-red-400">Could not load contexts</p>
             <button
-              onClick={() => refetchClients()}
+              onClick={() => refetchContexts()}
               className="text-xs text-red-600 dark:text-red-400 underline font-medium"
             >
               Retry
@@ -124,23 +128,23 @@ export function AddAssignment() {
           </div>
         ) : (
           <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            disabled={clientsLoading}
+            value={contextId}
+            onChange={(e) => setContextId(e.target.value)}
+            disabled={contextsLoading}
             className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white dark:bg-gray-800 disabled:opacity-50"
           >
             <option value="">
-              {clientsLoading ? "Loading clients…" : "Select client"}
+              {contextsLoading ? "Loading contexts…" : "Select work context"}
             </option>
-            {clients.map((c) => (
+            {contexts.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name} {c.priority ? `(${c.priority} priority)` : ""}
+                {c.name} ({c.context_type || 'Client'})
               </option>
             ))}
           </select>
         )}
-        {fieldErrors.clientId && (
-          <p className="text-xs text-red-500">{fieldErrors.clientId}</p>
+        {fieldErrors.contextId && (
+          <p className="text-xs text-red-500">{fieldErrors.contextId}</p>
         )}
       </div>
 
@@ -243,6 +247,44 @@ export function AddAssignment() {
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
         />
+      </div>
+
+      {/* Reminder override */}
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+          Reminder Lead Time
+        </label>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Input
+            type="number"
+            placeholder="Workspace default"
+            min={5}
+            max={1440}
+            value={reminderMinutesBefore ?? ""}
+            onChange={(e) =>
+              setReminderMinutesBefore(e.target.value ? Math.max(5, Math.min(1440, Number(e.target.value))) : null)
+            }
+            className="w-36"
+          />
+          <span className="text-xs text-gray-400 dark:text-gray-500">min</span>
+          <div className="flex items-center gap-1.5">
+            {[30, 60, 120, 240].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setReminderMinutesBefore(reminderMinutesBefore === preset ? null : preset)}
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                  reminderMinutesBefore === preset
+                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-emerald-400 hover:text-emerald-600'
+                }`}
+              >
+                {preset < 60 ? `${preset}m` : `${preset / 60}h`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-[11px] text-gray-400 dark:text-gray-500">Leave blank to use workspace default. Overrides per-assignment when set.</p>
       </div>
 
       <div className="space-y-2 pt-2">
