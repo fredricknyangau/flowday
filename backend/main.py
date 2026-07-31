@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from modules.assignments.router import router as assignments_router
 from modules.auth.router import router as auth_router
 from modules.burnout.router import router as burnout_router
-from modules.contexts.router import router as contexts_router, clients_alias_router
+from modules.contexts.router import router as contexts_router
 from modules.push.router import router as push_router
 from modules.push.tasks import run_push_notification_worker
 from modules.schedule.router import router as schedule_router
@@ -57,8 +57,8 @@ app.add_middleware(
 )
 
 # Authenticated routers — all requests require a valid Bearer JWT.
-app.include_router(contexts_router,      prefix="/api/v1/contexts",    tags=["contexts"],                   dependencies=[Depends(get_tenant_id)])
-app.include_router(clients_alias_router, prefix="/api/v1/clients",     tags=["clients (deprecated alias)"], dependencies=[Depends(get_tenant_id)])
+app.include_router(contexts_router, prefix="/api/v1/contexts", tags=["contexts"],                   dependencies=[Depends(get_tenant_id)])
+app.include_router(contexts_router, prefix="/api/v1/clients",  tags=["clients (deprecated alias)"], dependencies=[Depends(get_tenant_id)])
 app.include_router(assignments_router,  prefix="/api/v1/assignments",  tags=["assignments"],                dependencies=[Depends(get_tenant_id)])
 app.include_router(schedule_router,    prefix="/api/v1/schedule",    tags=["schedule"],    dependencies=[Depends(get_tenant_id)])
 app.include_router(burnout_router,     prefix="/api/v1/burnout",     tags=["burnout"],     dependencies=[Depends(get_tenant_id)])

@@ -18,11 +18,9 @@ from modules.contexts.schemas import (
 )
 
 router = APIRouter()
-clients_alias_router = APIRouter()
 
 
 @router.get("/analytics")
-@clients_alias_router.get("/analytics")
 async def get_analytics(
     tenant_id: UUID = Depends(get_tenant_id),
     conn: asyncpg.Connection = Depends(get_connection),
@@ -31,7 +29,6 @@ async def get_analytics(
 
 
 @router.get("", response_model=list[ContextResponse])
-@clients_alias_router.get("", response_model=list[ContextResponse])
 async def list_contexts(
     tenant_id: UUID = Depends(get_tenant_id),
     conn: asyncpg.Connection = Depends(get_connection),
@@ -41,7 +38,6 @@ async def list_contexts(
 
 
 @router.post("", response_model=ContextResponse, status_code=status.HTTP_201_CREATED)
-@clients_alias_router.post("", response_model=ContextResponse, status_code=status.HTTP_201_CREATED)
 async def create_new_context(
     body: CreateContextRequest,
     tenant_id: UUID = Depends(get_tenant_id),
@@ -52,7 +48,6 @@ async def create_new_context(
 
 
 @router.patch("/{context_id}", response_model=ContextResponse)
-@clients_alias_router.patch("/{context_id}", response_model=ContextResponse)
 async def update_existing_context(
     context_id: UUID,
     body: UpdateContextRequest,
@@ -69,7 +64,6 @@ async def update_existing_context(
 
 
 @router.delete("/{context_id}", status_code=status.HTTP_204_NO_CONTENT)
-@clients_alias_router.delete("/{context_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_context(
     context_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
